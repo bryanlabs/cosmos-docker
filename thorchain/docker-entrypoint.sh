@@ -28,7 +28,7 @@ if [[ ! -f /thornode/.initialized ]]; then
   dasel put -f /thornode/config/app.toml -v true grpc-web.enable 2>/dev/null || true
   dasel put -f /thornode/config/app.toml -v "0.0.0.0:${GRPC_WEB_PORT:-9091}" grpc-web.address 2>/dev/null || true
   
-  dasel put -f /thornode/config/app.toml -v "0.0.0.0:${REST_PORT}" api.address
+  dasel put -f /thornode/config/app.toml -v "tcp://0.0.0.0:${REST_PORT}" api.address
   dasel put -f /thornode/config/app.toml -v true api.enable
 
   echo "Downloading genesis file..."

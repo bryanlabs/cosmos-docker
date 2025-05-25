@@ -88,3 +88,4 @@ services:
 volumes:
   thornode-data:
   thornode-builds:
+-
