@@ -1,0 +1,90 @@
+x-logging: &logging
+  logging:
+    driver: json-file
+    options:
+      max-size: 100m
+      max-file: "3"
+      tag: '{{.ImageName}}|{{.Name}}|{{.ImageFullID}}|{{.FullID}}'
+
+services:
+  builder:
+    restart: "no"
+    build:
+      context: ./builder
+      dockerfile: Dockerfile
+    image: builder:thornode
+    pull_policy: never
+    environment:
+      - THORNODE_VERSION=${THORNODE_VERSION}
+      - FORCE_REBUILD=${FORCE_REBUILD}
+    volumes:
+      - thornode-builds:/builds
+
+  thorchain:
+    build:
+      context: ./thorchain
+      dockerfile: Dockerfile.source
+      args:
+        - THORNODE_VERSION=${THORNODE_VERSION}
+        - USER=thornode
+    image: thorchain:local
+    pull_policy: never
+    user: thornode
+    restart: unless-stopped
+    stop_grace_period: 5m
+    environment:
+      - THORNODE_VERSION=${THORNODE_VERSION}
+      - EXTRA_FLAGS=${EXTRA_FLAGS:-}
+      - NETWORK=${NETWORK}
+      - MONIKER=${MONIKER}
+      - RPC_PORT=${RPC_PORT:-27147}
+      - P2P_PORT=${P2P_PORT:-27146}
+      - GRPC_PORT=${GRPC_PORT:-9090}
+      - GRPC_WEB_PORT=${GRPC_WEB_PORT:-9091}
+      - REST_PORT=${REST_PORT:-1317}
+      - SNAPSHOT=${SNAPSHOT}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - DAEMON_HOME=/thornode
+      - DAEMON_NAME=thornode
+    ports:
+      - ${P2P_PORT:-27146}:${P2P_PORT:-27146}/tcp
+      - ${RPC_PORT:-27147}:${RPC_PORT:-27147}/tcp
+      - ${GRPC_PORT:-9090}:${GRPC_PORT:-9090}/tcp
+      - ${GRPC_WEB_PORT:-9091}:${GRPC_WEB_PORT:-9091}/tcp
+      - ${REST_PORT:-1317}:${REST_PORT:-1317}/tcp
+    depends_on:
+      builder:
+        condition: service_completed_successfully
+    <<: *logging
+    volumes:
+      - /mnt/data/blockchain/:/thornode
+      - thornode-builds:/builds
+    entrypoint:
+      - docker-entrypoint.sh
+      - start
+      - --home
+      - /thornode
+    labels:
+        - traefik.enable=true
+        - traefik.http.routers.${RPC_HOST}.service=${RPC_HOST}
+        - traefik.http.routers.${RPC_HOST}.entrypoints=websecure
+        - traefik.http.routers.${RPC_HOST}.rule=Host(`${RPC_HOST}.${DOMAIN}`)
+        - traefik.http.routers.${RPC_HOST}.tls.certresolver=letsencrypt
+        - traefik.http.routers.${RPC_HOST}lb.service=${RPC_HOST}
+        - traefik.http.routers.${RPC_HOST}lb.entrypoints=websecure
+        - traefik.http.routers.${RPC_HOST}lb.rule=Host(`${RPC_LB}.${DOMAIN}`)
+        - traefik.http.routers.${RPC_HOST}lb.tls.certresolver=letsencrypt
+        - traefik.http.services.${RPC_HOST}.loadbalancer.server.port=${RPC_PORT}
+        - traefik.http.routers.${REST_HOST}.service=${REST_HOST}
+        - traefik.http.routers.${REST_HOST}.entrypoints=websecure
+        - traefik.http.routers.${REST_HOST}.rule=Host(`${REST_HOST}.${DOMAIN}`)
+        - traefik.http.routers.${REST_HOST}.tls.certresolver=letsencrypt
+        - traefik.http.routers.${REST_HOST}lb.service=${REST_HOST}
+        - traefik.http.routers.${REST_HOST}lb.entrypoints=websecure
+        - traefik.http.routers.${REST_HOST}lb.rule=Host(`${REST_LB}.${DOMAIN}`)
+        - traefik.http.routers.${REST_HOST}lb.tls.certresolver=letsencrypt
+        - traefik.http.services.${REST_HOST}.loadbalancer.server.port=${REST_PORT}
+
+volumes:
+  thornode-data:
+  thornode-builds:
