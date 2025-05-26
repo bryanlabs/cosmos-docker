@@ -47,8 +47,21 @@ services:
       - SNAPSHOT_API_URL=${SNAPSHOT_API_URL:-https://snapshots.ninerealms.com/snapshots?prefix=thornode}
       - SNAPSHOT_BASE_URL=${SNAPSHOT_BASE_URL:-https://snapshots.ninerealms.com/snapshots/thornode/}
       - SEEDS=${SEEDS}
+      - PERSISTENT_PEERS=${PERSISTENT_PEERS}
+      - MAX_INBOUND_PEERS=${MAX_INBOUND_PEERS:-400}
+      - MAX_OUTBOUND_PEERS=${MAX_OUTBOUND_PEERS:-400}
+      - P2P_PEX=${P2P_PEX:-true}
+      - P2P_ADDR_BOOK_STRICT=${P2P_ADDR_BOOK_STRICT:-true}
+      - P2P_FLUSH_THROTTLE_TIMEOUT=${P2P_FLUSH_THROTTLE_TIMEOUT:-30s}
+      - P2P_DIAL_TIMEOUT=${P2P_DIAL_TIMEOUT:-10s}
+      - P2P_HANDSHAKE_TIMEOUT=${P2P_HANDSHAKE_TIMEOUT:-3s}
+      - P2P_ALLOW_DUPLICATE_IP=${P2P_ALLOW_DUPLICATE_IP:-false}
+      - PRIVATE_PEER_IDS=${PRIVATE_PEER_IDS}
+      - EXTERNAL_ADDRESS=${EXTERNAL_ADDRESS}
       - GENESIS_URL=${GENESIS_URL:-https://storage.googleapis.com/public-snapshots-ninerealms/genesis/17562000.json}
       - LOG_LEVEL=${LOG_LEVEL:-info}
+      - GOMAXPROCS=${GOMAXPROCS}
+      - GOMEMLIMIT=${GOMEMLIMIT}
       - DAEMON_HOME=/thornode
       - DAEMON_NAME=thornode
     ports:

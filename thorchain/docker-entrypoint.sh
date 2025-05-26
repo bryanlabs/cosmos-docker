@@ -21,6 +21,31 @@ if [[ ! -f /thornode/.initialized ]]; then
     echo "Node may have difficulty finding peers. Please set SEEDS in .env file."
   fi
 
+  # Configure persistent peers for faster sync
+  if [ -n "${PERSISTENT_PEERS:-}" ]; then
+    echo "Configuring persistent peers: $PERSISTENT_PEERS"
+    dasel put -f /thornode/config/config.toml -v "$PERSISTENT_PEERS" p2p.persistent_peers
+  fi
+
+  # Configure P2P connection limits for faster sync
+  echo "Configuring P2P connection limits..."
+  dasel put -f /thornode/config/config.toml -v "${MAX_INBOUND_PEERS:-400}" p2p.max_num_inbound_peers
+  dasel put -f /thornode/config/config.toml -v "${MAX_OUTBOUND_PEERS:-400}" p2p.max_num_outbound_peers
+  
+  # Additional P2P optimizations for faster sync
+  dasel put -f /thornode/config/config.toml -v "${P2P_PEX:-true}" p2p.pex
+  dasel put -f /thornode/config/config.toml -v "${P2P_ADDR_BOOK_STRICT:-true}" p2p.addr_book_strict
+  dasel put -f /thornode/config/config.toml -v "${P2P_FLUSH_THROTTLE_TIMEOUT:-30s}" p2p.flush_throttle_timeout
+  dasel put -f /thornode/config/config.toml -v "${P2P_DIAL_TIMEOUT:-10s}" p2p.dial_timeout
+  dasel put -f /thornode/config/config.toml -v "${P2P_HANDSHAKE_TIMEOUT:-3s}" p2p.handshake_timeout
+  dasel put -f /thornode/config/config.toml -v "${P2P_ALLOW_DUPLICATE_IP:-false}" p2p.allow_duplicate_ip
+
+  # Configure external address if provided
+  if [ -n "${EXTERNAL_ADDRESS:-}" ]; then
+    echo "Configuring external address: $EXTERNAL_ADDRESS"
+    dasel put -f /thornode/config/config.toml -v "$EXTERNAL_ADDRESS" p2p.external_address
+  fi
+
   echo "Adjusting ports to THORNode standards..."
   # Update RPC port
   dasel put -f /thornode/config/config.toml -v "tcp://0.0.0.0:${RPC_PORT}" rpc.laddr
@@ -124,6 +149,38 @@ fi
 if [ -n "${SEEDS}" ]; then
   echo "Configuring seeds: ${SEEDS}"
   sed -i "s/seeds = '.*'/seeds = '${SEEDS}'/" /thornode/config/config.toml
+fi
+
+# Configure persistent peers (run every time to ensure they're applied)
+if [ -n "${PERSISTENT_PEERS:-}" ]; then
+  echo "Configuring persistent peers: $PERSISTENT_PEERS"
+  dasel put -f /thornode/config/config.toml -v "$PERSISTENT_PEERS" p2p.persistent_peers
+fi
+
+# Configure P2P connection limits (run every time to ensure they're applied)
+echo "Configuring P2P connection limits..."
+dasel put -f /thornode/config/config.toml -v "${MAX_INBOUND_PEERS:-400}" p2p.max_num_inbound_peers
+dasel put -f /thornode/config/config.toml -v "${MAX_OUTBOUND_PEERS:-400}" p2p.max_num_outbound_peers
+
+# Configure P2P optimizations (run every time to ensure they're applied)
+echo "Configuring P2P optimizations..."
+dasel put -f /thornode/config/config.toml -v "${P2P_PEX:-true}" p2p.pex
+dasel put -f /thornode/config/config.toml -v "${P2P_ADDR_BOOK_STRICT:-true}" p2p.addr_book_strict
+dasel put -f /thornode/config/config.toml -v "${P2P_FLUSH_THROTTLE_TIMEOUT:-30s}" p2p.flush_throttle_timeout
+dasel put -f /thornode/config/config.toml -v "${P2P_DIAL_TIMEOUT:-10s}" p2p.dial_timeout
+dasel put -f /thornode/config/config.toml -v "${P2P_HANDSHAKE_TIMEOUT:-3s}" p2p.handshake_timeout
+dasel put -f /thornode/config/config.toml -v "${P2P_ALLOW_DUPLICATE_IP:-false}" p2p.allow_duplicate_ip
+
+# Configure private peer IDs (trusted peers) if provided
+if [ -n "${PRIVATE_PEER_IDS:-}" ]; then
+  echo "Configuring private peer IDs (trusted peers): $PRIVATE_PEER_IDS"
+  dasel put -f /thornode/config/config.toml -v "$PRIVATE_PEER_IDS" p2p.private_peer_ids
+fi
+
+# Configure external address if provided
+if [ -n "${EXTERNAL_ADDRESS:-}" ]; then
+  echo "Configuring external address: $EXTERNAL_ADDRESS"
+  dasel put -f /thornode/config/config.toml -v "$EXTERNAL_ADDRESS" p2p.external_address
 fi
 
 # Configure P2P and RPC ports
