@@ -31,18 +31,25 @@ docker compose logs -f thorchain
 The main configuration options in `.env`:
 
 - `THORNODE_VERSION`: THORNode version to run (default: v3.5.6)
+- `THORNODE_REPO`: Git repository URL for THORNode source code
 - `MONIKER`: Your node's moniker/name
 - `NETWORK`: Chain ID (default: thorchain-1)
 - `SNAPSHOT`: Optional snapshot URL for faster sync
+- `SNAPSHOT_API_URL`: API endpoint to find latest snapshots
+- `SNAPSHOT_BASE_URL`: Base URL for downloading snapshots
+- `SEEDS`: Comma-separated list of seed nodes for peer discovery
+- `GENESIS_URL`: URL to download the genesis file
+- `EXTRA_FLAGS`: Additional flags to pass to the thornode binary
 - `LOG_LEVEL`: Logging level (info, warn, error, trace)
 
 ## Ports
 
 The following ports are exposed:
 
-- `27147`: RPC port
-- `27146`: P2P port
+- `26657`: RPC port (Cosmos standard)
+- `26656`: P2P port (Cosmos standard) 
 - `9090`: gRPC port
+- `9091`: gRPC-Web port
 - `1317`: REST API port
 
 ## Data Persistence

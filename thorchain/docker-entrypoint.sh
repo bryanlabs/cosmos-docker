@@ -13,7 +13,13 @@ if [[ ! -f /thornode/.initialized ]]; then
   /thornode/bin/thornode init $MONIKER --chain-id $NETWORK --home /thornode --overwrite
 
   echo "Configuring seed nodes..."
-  dasel put -f /thornode/config/config.toml -v "c3613862c2608b3e861406ad02146f41cf5124e6@statesync-seed.ninerealms.com:27146,dbd1730bff1e8a21aad93bc6083209904d483185@statesync-seed-2.ninerealms.com:27146" p2p.seeds
+  if [ -n "${SEEDS:-}" ]; then
+    echo "Using configured seeds: $SEEDS"
+    dasel put -f /thornode/config/config.toml -v "$SEEDS" p2p.seeds
+  else
+    echo "WARNING: No seeds configured in environment variables!"
+    echo "Node may have difficulty finding peers. Please set SEEDS in .env file."
+  fi
 
   echo "Adjusting ports to THORNode standards..."
   # Update RPC port
@@ -32,7 +38,13 @@ if [[ ! -f /thornode/.initialized ]]; then
   dasel put -f /thornode/config/app.toml -v true api.enable
 
   echo "Downloading genesis file..."
-  curl https://storage.googleapis.com/public-snapshots-ninerealms/genesis/17562000.json -o /thornode/config/genesis.json
+  if [ -n "${GENESIS_URL:-}" ]; then
+    echo "Using configured genesis URL: $GENESIS_URL"
+    curl "$GENESIS_URL" -o /thornode/config/genesis.json
+  else
+    echo "No genesis URL configured, using default..."
+    curl https://storage.googleapis.com/public-snapshots-ninerealms/genesis/17562000.json -o /thornode/config/genesis.json
+  fi
 
   if [ -n "$SNAPSHOT" ]; then
     echo "Using specified snapshot: $SNAPSHOT"
@@ -50,10 +62,13 @@ if [[ ! -f /thornode/.initialized ]]; then
     fi
   else
     echo "Fetching latest snapshot automatically..."
-    FILENAME=$(curl -s "https://snapshots.ninerealms.com/snapshots?prefix=thornode" | grep -Eo "thornode/[0-9]+.tar.gz" | sort -n | tail -n 1 | cut -d "/" -f 2)
+    SNAPSHOT_API_URL="${SNAPSHOT_API_URL:-https://snapshots.ninerealms.com/snapshots?prefix=thornode}"
+    SNAPSHOT_BASE_URL="${SNAPSHOT_BASE_URL:-https://snapshots.ninerealms.com/snapshots/thornode/}"
+    
+    FILENAME=$(curl -s "$SNAPSHOT_API_URL" | grep -Eo "thornode/[0-9]+.tar.gz" | sort -n | tail -n 1 | cut -d "/" -f 2)
     if [ -n "$FILENAME" ]; then
       echo "Using latest snapshot: $FILENAME"
-      aria2c --split=16 --max-concurrent-downloads=16 --max-connection-per-server=16 --continue --min-split-size=100M -d /thornode -o $FILENAME "https://snapshots.ninerealms.com/snapshots/thornode/${FILENAME}"
+      aria2c --split=16 --max-concurrent-downloads=16 --max-connection-per-server=16 --continue --min-split-size=100M -d /thornode -o $FILENAME "${SNAPSHOT_BASE_URL}${FILENAME}"
       echo "Download completed. Preparing to extract snapshot..."
       rm -rf /thornode/data/*.db /thornode/data/snapshot /thornode/data/cs.wal
       
@@ -103,6 +118,23 @@ else
   mkdir -p /thornode/bin
   cp /builds/thornode-${THORNODE_VERSION} /thornode/bin/thornode
   chmod +x /thornode/bin/thornode
+fi
+
+# Configure seeds if provided
+if [ -n "${SEEDS}" ]; then
+  echo "Configuring seeds: ${SEEDS}"
+  sed -i "s/seeds = '.*'/seeds = '${SEEDS}'/" /thornode/config/config.toml
+fi
+
+# Configure P2P and RPC ports
+if [ -n "${P2P_PORT}" ]; then
+  echo "Setting P2P port to: ${P2P_PORT}"
+  sed -i "s/laddr = \"tcp:\/\/0.0.0.0:26656\"/laddr = \"tcp:\/\/0.0.0.0:${P2P_PORT}\"/" /thornode/config/config.toml
+fi
+
+if [ -n "${RPC_PORT}" ]; then
+  echo "Setting RPC port to: ${RPC_PORT}"
+  sed -i "s/laddr = \"tcp:\/\/127.0.0.1:26657\"/laddr = \"tcp:\/\/0.0.0.0:${RPC_PORT}\"/" /thornode/config/config.toml
 fi
 
 echo "Starting THORNode..."

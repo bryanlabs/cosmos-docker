@@ -34,21 +34,26 @@ services:
     stop_grace_period: 5m
     environment:
       - THORNODE_VERSION=${THORNODE_VERSION}
+      - THORNODE_REPO=${THORNODE_REPO:-https://gitlab.com/thorchain/thornode}
       - EXTRA_FLAGS=${EXTRA_FLAGS:-}
       - NETWORK=${NETWORK}
       - MONIKER=${MONIKER}
-      - RPC_PORT=${RPC_PORT:-27147}
-      - P2P_PORT=${P2P_PORT:-27146}
+      - RPC_PORT=${RPC_PORT:-26657}
+      - P2P_PORT=${P2P_PORT:-26656}
       - GRPC_PORT=${GRPC_PORT:-9090}
       - GRPC_WEB_PORT=${GRPC_WEB_PORT:-9091}
       - REST_PORT=${REST_PORT:-1317}
       - SNAPSHOT=${SNAPSHOT}
+      - SNAPSHOT_API_URL=${SNAPSHOT_API_URL:-https://snapshots.ninerealms.com/snapshots?prefix=thornode}
+      - SNAPSHOT_BASE_URL=${SNAPSHOT_BASE_URL:-https://snapshots.ninerealms.com/snapshots/thornode/}
+      - SEEDS=${SEEDS}
+      - GENESIS_URL=${GENESIS_URL:-https://storage.googleapis.com/public-snapshots-ninerealms/genesis/17562000.json}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - DAEMON_HOME=/thornode
       - DAEMON_NAME=thornode
     ports:
-      - ${P2P_PORT:-27146}:${P2P_PORT:-27146}/tcp
-      - ${RPC_PORT:-27147}:${RPC_PORT:-27147}/tcp
+      - ${P2P_PORT:-26656}:${P2P_PORT:-26656}/tcp
+      - ${RPC_PORT:-26657}:${RPC_PORT:-26657}/tcp
       - ${GRPC_PORT:-9090}:${GRPC_PORT:-9090}/tcp
       - ${GRPC_WEB_PORT:-9091}:${GRPC_WEB_PORT:-9091}/tcp
       - ${REST_PORT:-1317}:${REST_PORT:-1317}/tcp

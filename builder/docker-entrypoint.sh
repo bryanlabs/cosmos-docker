@@ -12,7 +12,9 @@ fi
 echo "Building THORNode version ${THORNODE_VERSION}"
 
 # Clone the repository
-git clone --branch ${THORNODE_VERSION} https://gitlab.com/thorchain/thornode /src/thornode
+THORNODE_REPO="${THORNODE_REPO:-https://gitlab.com/thorchain/thornode}"
+echo "Cloning repository from: $THORNODE_REPO"
+git clone --branch ${THORNODE_VERSION} "$THORNODE_REPO" /src/thornode
 cd /src/thornode
 
 # Download the correct WasmVM library for musl

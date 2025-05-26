@@ -4,7 +4,7 @@
 
 set -e
 
-RPC_URL="http://localhost:27147"
+RPC_URL="http://localhost:26657"
 
 echo "=== THORChain Node Status ==="
 echo "Timestamp: $(date)"
