@@ -18,10 +18,10 @@ start: ## Start THORChain node with complete monitoring
 	@echo "⏳ Waiting for containers to initialize..."
 	@sleep 3
 	@echo ""
-	@echo "🔨 Monitoring builder service..."
-	@make watch-builder &
+	@echo "🔨 Watching builder service first..."
+	@make watch-builder
 	@echo ""
-	@echo "⚡ Monitoring thorchain service..."
+	@echo "⚡ Now watching thorchain service..."
 	@make watch-thorchain
 
 stop: ## Stop THORChain node
