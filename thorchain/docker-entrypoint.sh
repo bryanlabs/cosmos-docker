@@ -1,66 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Ensure bin directory exists and copy the binary from builds (always do this)
+mkdir -p /thornode/bin
+cp /builds/thornode-${THORNODE_VERSION} /thornode/bin/thornode
+chmod +x /thornode/bin/thornode
+
 if [[ ! -f /thornode/.initialized ]]; then
   echo "Initializing THORNode!"
 
-  # Ensure bin directory exists and copy the binary from builds
-  mkdir -p /thornode/bin
-  cp /builds/thornode-${THORNODE_VERSION} /thornode/bin/thornode
-  chmod +x /thornode/bin/thornode
-
   echo "Running init..."
   /thornode/bin/thornode init $MONIKER --chain-id $NETWORK --home /thornode --overwrite
-
-  echo "Configuring seed nodes..."
-  if [ -n "${SEEDS:-}" ]; then
-    echo "Using configured seeds: $SEEDS"
-    dasel put -f /thornode/config/config.toml -v "$SEEDS" p2p.seeds
-  else
-    echo "WARNING: No seeds configured in environment variables!"
-    echo "Node may have difficulty finding peers. Please set SEEDS in .env file."
-  fi
-
-  # Configure persistent peers for faster sync
-  if [ -n "${PERSISTENT_PEERS:-}" ]; then
-    echo "Configuring persistent peers: $PERSISTENT_PEERS"
-    dasel put -f /thornode/config/config.toml -v "$PERSISTENT_PEERS" p2p.persistent_peers
-  fi
-
-  # Configure P2P connection limits for faster sync
-  echo "Configuring P2P connection limits..."
-  dasel put -f /thornode/config/config.toml -v "${MAX_INBOUND_PEERS:-400}" p2p.max_num_inbound_peers
-  dasel put -f /thornode/config/config.toml -v "${MAX_OUTBOUND_PEERS:-400}" p2p.max_num_outbound_peers
-  
-  # Additional P2P optimizations for faster sync
-  dasel put -f /thornode/config/config.toml -v "${P2P_PEX:-true}" p2p.pex
-  dasel put -f /thornode/config/config.toml -v "${P2P_ADDR_BOOK_STRICT:-true}" p2p.addr_book_strict
-  dasel put -f /thornode/config/config.toml -v "${P2P_FLUSH_THROTTLE_TIMEOUT:-30s}" p2p.flush_throttle_timeout
-  dasel put -f /thornode/config/config.toml -v "${P2P_DIAL_TIMEOUT:-10s}" p2p.dial_timeout
-  dasel put -f /thornode/config/config.toml -v "${P2P_HANDSHAKE_TIMEOUT:-3s}" p2p.handshake_timeout
-  dasel put -f /thornode/config/config.toml -v "${P2P_ALLOW_DUPLICATE_IP:-false}" p2p.allow_duplicate_ip
-
-  # Configure external address if provided
-  if [ -n "${EXTERNAL_ADDRESS:-}" ]; then
-    echo "Configuring external address: $EXTERNAL_ADDRESS"
-    dasel put -f /thornode/config/config.toml -v "$EXTERNAL_ADDRESS" p2p.external_address
-  fi
-
-  echo "Adjusting ports to THORNode standards..."
-  # Update RPC port
-  dasel put -f /thornode/config/config.toml -v "tcp://0.0.0.0:${RPC_PORT}" rpc.laddr
-  # Update P2P port
-  dasel put -f /thornode/config/config.toml -v "tcp://0.0.0.0:${P2P_PORT}" p2p.laddr
-  
-  # Update app.toml for REST API and gRPC
-  # Enable gRPC with correct address format
-  dasel put -f /thornode/config/app.toml -v true grpc.enable 2>/dev/null || true
-  dasel put -f /thornode/config/app.toml -v "0.0.0.0:${GRPC_PORT:-9090}" grpc.address 2>/dev/null || true
-  dasel put -f /thornode/config/app.toml -v true grpc-web.enable 2>/dev/null || true
-  dasel put -f /thornode/config/app.toml -v "0.0.0.0:${GRPC_WEB_PORT:-9091}" grpc-web.address 2>/dev/null || true
-  
-  dasel put -f /thornode/config/app.toml -v "tcp://0.0.0.0:${REST_PORT}" api.address
-  dasel put -f /thornode/config/app.toml -v true api.enable
 
   echo "Downloading genesis file..."
   if [ -n "${GENESIS_URL:-}" ]; then
@@ -145,10 +95,16 @@ else
   chmod +x /thornode/bin/thornode
 fi
 
-# Configure seeds if provided
-if [ -n "${SEEDS}" ]; then
-  echo "Configuring seeds: ${SEEDS}"
-  sed -i "s/seeds = '.*'/seeds = '${SEEDS}'/" /thornode/config/config.toml
+# Configure all settings every time (not just during initialization)
+echo "Configuring THORNode settings..."
+
+# Configure seed nodes
+if [ -n "${SEEDS:-}" ]; then
+  echo "Using configured seeds: $SEEDS"
+  dasel put -f /thornode/config/config.toml -v "$SEEDS" p2p.seeds
+else
+  echo "WARNING: No seeds configured in environment variables!"
+  echo "Node may have difficulty finding peers. Please set SEEDS in .env file."
 fi
 
 # Configure persistent peers (run every time to ensure they're applied)
@@ -207,6 +163,15 @@ if [ -n "${RPC_PORT}" ]; then
   echo "Setting RPC port to: ${RPC_PORT}"
   dasel put -f /thornode/config/config.toml -v "tcp://0.0.0.0:${RPC_PORT}" rpc.laddr
 fi
+
+# Update app.toml for REST API and gRPC (run every time)
+echo "Configuring API and gRPC settings..."
+dasel put -f /thornode/config/app.toml -v true grpc.enable 2>/dev/null || true
+dasel put -f /thornode/config/app.toml -v "0.0.0.0:${GRPC_PORT:-9090}" grpc.address 2>/dev/null || true
+dasel put -f /thornode/config/app.toml -v true grpc-web.enable 2>/dev/null || true
+dasel put -f /thornode/config/app.toml -v "0.0.0.0:${GRPC_WEB_PORT:-9091}" grpc-web.address 2>/dev/null || true
+dasel put -f /thornode/config/app.toml -v "tcp://0.0.0.0:${REST_PORT}" api.address
+dasel put -f /thornode/config/app.toml -v true api.enable
 
 echo "Starting THORNode..."
 exec /thornode/bin/thornode start --home /thornode --grpc.address=0.0.0.0:${GRPC_PORT:-9090}
