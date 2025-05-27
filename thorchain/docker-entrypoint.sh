@@ -186,12 +186,12 @@ fi
 # Configure P2P and RPC ports
 if [ -n "${P2P_PORT}" ]; then
   echo "Setting P2P port to: ${P2P_PORT}"
-  sed -i "s/laddr = \"tcp:\/\/0.0.0.0:26656\"/laddr = \"tcp:\/\/0.0.0.0:${P2P_PORT}\"/" /thornode/config/config.toml
+  dasel put -f /thornode/config/config.toml -v "tcp://0.0.0.0:${P2P_PORT}" p2p.laddr
 fi
 
 if [ -n "${RPC_PORT}" ]; then
   echo "Setting RPC port to: ${RPC_PORT}"
-  sed -i "s/laddr = \"tcp:\/\/127.0.0.1:26657\"/laddr = \"tcp:\/\/0.0.0.0:${RPC_PORT}\"/" /thornode/config/config.toml
+  dasel put -f /thornode/config/config.toml -v "tcp://0.0.0.0:${RPC_PORT}" rpc.laddr
 fi
 
 echo "Starting THORNode..."
