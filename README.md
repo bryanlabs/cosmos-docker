@@ -30,7 +30,7 @@ docker compose logs -f thorchain
 
 The main configuration options in `.env`:
 
-- `THORNODE_VERSION`: THORNode version to run (default: v3.5.6)
+- `THORNODE_VERSION`: THORNode version to run (default: v3.6.1)
 - `THORNODE_REPO`: Git repository URL for THORNode source code
 - `MONIKER`: Your node's moniker/name
 - `NETWORK`: Chain ID (default: thorchain-1)

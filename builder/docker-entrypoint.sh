@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-THORNODE_VERSION=${THORNODE_VERSION:-v3.5.6}
+THORNODE_VERSION=${THORNODE_VERSION:-v3.6.1}
 
 # Check if binary already exists
 if [ -f "/builds/thornode-${THORNODE_VERSION}" ] && [ "$FORCE_REBUILD" != "true" ]; then

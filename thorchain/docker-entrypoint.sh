@@ -179,8 +179,22 @@ fi
 
 # Configure external address if provided
 if [ -n "${EXTERNAL_ADDRESS:-}" ]; then
-  echo "Configuring external address: $EXTERNAL_ADDRESS"
-  dasel put -f /thornode/config/config.toml -v "$EXTERNAL_ADDRESS" p2p.external_address
+  if [ "$EXTERNAL_ADDRESS" = "auto" ]; then
+    echo "Auto-detecting external IP address..."
+    DETECTED_IP=$(curl -s --connect-timeout 10 ifconfig.me -4 || echo "")
+    if [ -n "$DETECTED_IP" ]; then
+      EXTERNAL_ADDRESS="${DETECTED_IP}:${P2P_PORT:-26656}"
+      echo "Detected external IP: $DETECTED_IP, using external address: $EXTERNAL_ADDRESS"
+    else
+      echo "WARNING: Failed to auto-detect external IP. External address will not be configured."
+      EXTERNAL_ADDRESS=""
+    fi
+  fi
+  
+  if [ -n "$EXTERNAL_ADDRESS" ]; then
+    echo "Configuring external address: $EXTERNAL_ADDRESS"
+    dasel put -f /thornode/config/config.toml -v "$EXTERNAL_ADDRESS" p2p.external_address
+  fi
 fi
 
 # Configure P2P and RPC ports
