@@ -139,7 +139,7 @@ if [ -n "${EXTERNAL_ADDRESS:-}" ]; then
     echo "Auto-detecting external IP address..."
     DETECTED_IP=$(curl -s --connect-timeout 10 ifconfig.me -4 || echo "")
     if [ -n "$DETECTED_IP" ]; then
-      EXTERNAL_ADDRESS="${DETECTED_IP}:${P2P_PORT:-26656}"
+      EXTERNAL_ADDRESS="${DETECTED_IP}:${P2P_PORT:-27146}"
       echo "Detected external IP: $DETECTED_IP, using external address: $EXTERNAL_ADDRESS"
     else
       echo "WARNING: Failed to auto-detect external IP. External address will not be configured."
