@@ -8,7 +8,7 @@ This Docker Compose setup provides a complete THORChain fullnode environment bas
 
 1. Copy the environment file:
 ```bash
-cp default.env .env
+cp thorchain-1.env .env
 ```
 
 2. Optionally, edit `.env` to customize your setup:

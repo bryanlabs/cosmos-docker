@@ -8,7 +8,7 @@ help: ## Show this help message
 
 start: ## Start THORChain node with complete monitoring
 	@echo "🚀 Starting THORChain Node..."
-	@if [ ! -f .env ]; then cp default.env .env; echo "✅ Created .env file from default.env"; fi
+	@if [ ! -f .env ]; then cp thorchain-1.env .env; echo "✅ Created .env file from thorchain-1.env"; fi
 	@echo "📋 Current configuration:"
 	@grep "THORNODE_VERSION\|RPC_PORT\|P2P_PORT" .env | sed 's/^/   /'
 	@echo ""
