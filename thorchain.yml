@@ -104,26 +104,6 @@ services:
       - start
       - --home
       - /thornode
-    labels:
-        - traefik.enable=true
-        - traefik.http.routers.${RPC_HOST}.service=${RPC_HOST}
-        - traefik.http.routers.${RPC_HOST}.entrypoints=websecure
-        - traefik.http.routers.${RPC_HOST}.rule=Host(`${RPC_HOST}.${DOMAIN}`)
-        - traefik.http.routers.${RPC_HOST}.tls.certresolver=letsencrypt
-        - traefik.http.routers.${RPC_HOST}lb.service=${RPC_HOST}
-        - traefik.http.routers.${RPC_HOST}lb.entrypoints=websecure
-        - traefik.http.routers.${RPC_HOST}lb.rule=Host(`${RPC_LB}.${DOMAIN}`)
-        - traefik.http.routers.${RPC_HOST}lb.tls.certresolver=letsencrypt
-        - traefik.http.services.${RPC_HOST}.loadbalancer.server.port=${RPC_PORT}
-        - traefik.http.routers.${REST_HOST}.service=${REST_HOST}
-        - traefik.http.routers.${REST_HOST}.entrypoints=websecure
-        - traefik.http.routers.${REST_HOST}.rule=Host(`${REST_HOST}.${DOMAIN}`)
-        - traefik.http.routers.${REST_HOST}.tls.certresolver=letsencrypt
-        - traefik.http.routers.${REST_HOST}lb.service=${REST_HOST}
-        - traefik.http.routers.${REST_HOST}lb.entrypoints=websecure
-        - traefik.http.routers.${REST_HOST}lb.rule=Host(`${REST_LB}.${DOMAIN}`)
-        - traefik.http.routers.${REST_HOST}lb.tls.certresolver=letsencrypt
-        - traefik.http.services.${REST_HOST}.loadbalancer.server.port=${REST_PORT}
 
 volumes:
   thornode-data:
