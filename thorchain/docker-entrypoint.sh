@@ -98,6 +98,12 @@ fi
 # Configure all settings every time (not just during initialization)
 echo "Configuring THORNode settings..."
 
+# Configure basic node settings
+echo "Configuring basic node settings..."
+dasel put -f /thornode/config/config.toml -v "${PROXY_APP:-tcp://127.0.0.1:26658}" proxy_app
+dasel put -f /thornode/config/config.toml -v "${FAST_SYNC:-true}" fast_sync
+dasel put -f /thornode/config/config.toml -v "${LOG_FORMAT:-plain}" log_format
+
 # Configure seed nodes
 if [ -n "${SEEDS:-}" ]; then
   echo "Using configured seeds: $SEEDS"
@@ -115,17 +121,120 @@ fi
 
 # Configure P2P connection limits (run every time to ensure they're applied)
 echo "Configuring P2P connection limits..."
-dasel put -f /thornode/config/config.toml -v "${MAX_INBOUND_PEERS:-400}" p2p.max_num_inbound_peers
-dasel put -f /thornode/config/config.toml -v "${MAX_OUTBOUND_PEERS:-400}" p2p.max_num_outbound_peers
+dasel put -f /thornode/config/config.toml -v "${MAX_INBOUND_PEERS:-40}" p2p.max_num_inbound_peers
+dasel put -f /thornode/config/config.toml -v "${MAX_OUTBOUND_PEERS:-10}" p2p.max_num_outbound_peers
 
 # Configure P2P optimizations (run every time to ensure they're applied)
 echo "Configuring P2P optimizations..."
 dasel put -f /thornode/config/config.toml -v "${P2P_PEX:-true}" p2p.pex
-dasel put -f /thornode/config/config.toml -v "${P2P_ADDR_BOOK_STRICT:-true}" p2p.addr_book_strict
-dasel put -f /thornode/config/config.toml -v "${P2P_FLUSH_THROTTLE_TIMEOUT:-30s}" p2p.flush_throttle_timeout
-dasel put -f /thornode/config/config.toml -v "${P2P_DIAL_TIMEOUT:-10s}" p2p.dial_timeout
-dasel put -f /thornode/config/config.toml -v "${P2P_HANDSHAKE_TIMEOUT:-3s}" p2p.handshake_timeout
-dasel put -f /thornode/config/config.toml -v "${P2P_ALLOW_DUPLICATE_IP:-false}" p2p.allow_duplicate_ip
+dasel put -f /thornode/config/config.toml -v "${P2P_ADDR_BOOK_STRICT:-false}" p2p.addr_book_strict
+dasel put -f /thornode/config/config.toml -v "${P2P_FLUSH_THROTTLE_TIMEOUT:-100ms}" p2p.flush_throttle_timeout
+dasel put -f /thornode/config/config.toml -v "${P2P_DIAL_TIMEOUT:-3s}" p2p.dial_timeout
+dasel put -f /thornode/config/config.toml -v "${P2P_HANDSHAKE_TIMEOUT:-20s}" p2p.handshake_timeout
+dasel put -f /thornode/config/config.toml -v "${P2P_ALLOW_DUPLICATE_IP:-true}" p2p.allow_duplicate_ip
+
+# Configure RPC settings
+echo "Configuring RPC settings..."
+dasel put -f /thornode/config/config.toml -v "${RPC_CORS_ALLOWED_ORIGINS:-[\"*\"]}" rpc.cors_allowed_origins
+dasel put -f /thornode/config/config.toml -v "${RPC_MAX_OPEN_CONNECTIONS:-900}" rpc.max_open_connections
+dasel put -f /thornode/config/config.toml -v "${RPC_GRPC_MAX_OPEN_CONNECTIONS:-900}" rpc.grpc_max_open_connections
+
+# Configure State Sync settings
+echo "Configuring State Sync settings..."
+dasel put -f /thornode/config/config.toml -v "${STATESYNC_ENABLE:-false}" statesync.enable
+if [ -n "${STATESYNC_RPC_SERVERS:-}" ]; then
+  dasel put -f /thornode/config/config.toml -v "$STATESYNC_RPC_SERVERS" statesync.rpc_servers
+fi
+dasel put -f /thornode/config/config.toml -v "${STATESYNC_TRUST_PERIOD:-360h0m0s}" statesync.trust_period
+
+# Configure Consensus settings
+echo "Configuring Consensus settings..."
+dasel put -f /thornode/config/config.toml -v "${CONSENSUS_TIMEOUT_COMMIT:-5s}" consensus.timeout_commit
+dasel put -f /thornode/config/config.toml -v "${CONSENSUS_CREATE_EMPTY_BLOCKS:-true}" consensus.create_empty_blocks
+
+# Configure Mempool settings
+echo "Configuring Mempool settings..."
+dasel put -f /thornode/config/config.toml -v "${MEMPOOL_SIZE:-5000}" mempool.size
+dasel put -f /thornode/config/config.toml -v "${MEMPOOL_CACHE_SIZE:-10000}" mempool.cache_size
+
+# Configure Instrumentation settings
+echo "Configuring Instrumentation settings..."
+dasel put -f /thornode/config/config.toml -v "${PROMETHEUS_ENABLED:-true}" instrumentation.prometheus
+dasel put -f /thornode/config/config.toml -v "${PROMETHEUS_NAMESPACE:-tendermint}" instrumentation.namespace
+
+# Configure additional P2P settings for optimal performance
+echo "Configuring additional P2P settings..."
+dasel put -f /thornode/config/config.toml -v "${P2P_SEND_RATE:-5120000}" p2p.send_rate
+dasel put -f /thornode/config/config.toml -v "${P2P_RECV_RATE:-5120000}" p2p.recv_rate
+dasel put -f /thornode/config/config.toml -v "${P2P_MAX_PACKET_MSG_PAYLOAD_SIZE:-1024}" p2p.max_packet_msg_payload_size
+dasel put -f /thornode/config/config.toml -v "${P2P_SEED_MODE:-false}" p2p.seed_mode
+dasel put -f /thornode/config/config.toml -v "${P2P_UNCONDITIONAL_PEER_IDS:-}" p2p.unconditional_peer_ids
+dasel put -f /thornode/config/config.toml -v "${P2P_PERSISTENT_PEERS_MAX_DIAL_PERIOD:-0s}" p2p.persistent_peers_max_dial_period
+
+# Configure additional mempool settings
+echo "Configuring additional mempool settings..."
+dasel put -f /thornode/config/config.toml -v "${MEMPOOL_RECHECK:-true}" mempool.recheck
+dasel put -f /thornode/config/config.toml -v "${MEMPOOL_BROADCAST:-true}" mempool.broadcast
+dasel put -f /thornode/config/config.toml -v "${MEMPOOL_MAX_TXS_BYTES:-1073741824}" mempool.max_txs_bytes
+dasel put -f /thornode/config/config.toml -v "${MEMPOOL_MAX_TX_BYTES:-1048576}" mempool.max_tx_bytes
+dasel put -f /thornode/config/config.toml -v "${MEMPOOL_MAX_BATCH_BYTES:-0}" mempool.max_batch_bytes
+dasel put -f /thornode/config/config.toml -v "${MEMPOOL_KEEP_INVALID_TXS:-false}" mempool.keep-invalid-txs-in-cache
+
+# Configure additional consensus settings
+echo "Configuring additional consensus settings..."
+dasel put -f /thornode/config/config.toml -v "${CONSENSUS_TIMEOUT_PROPOSE:-3s}" consensus.timeout_propose
+dasel put -f /thornode/config/config.toml -v "${CONSENSUS_TIMEOUT_PROPOSE_DELTA:-500ms}" consensus.timeout_propose_delta
+dasel put -f /thornode/config/config.toml -v "${CONSENSUS_TIMEOUT_PREVOTE:-1s}" consensus.timeout_prevote
+dasel put -f /thornode/config/config.toml -v "${CONSENSUS_TIMEOUT_PREVOTE_DELTA:-500ms}" consensus.timeout_prevote_delta
+dasel put -f /thornode/config/config.toml -v "${CONSENSUS_TIMEOUT_PRECOMMIT:-1s}" consensus.timeout_precommit
+dasel put -f /thornode/config/config.toml -v "${CONSENSUS_TIMEOUT_PRECOMMIT_DELTA:-500ms}" consensus.timeout_precommit_delta
+dasel put -f /thornode/config/config.toml -v "${CONSENSUS_SKIP_TIMEOUT_COMMIT:-false}" consensus.skip_timeout_commit
+dasel put -f /thornode/config/config.toml -v "${CONSENSUS_CREATE_EMPTY_BLOCKS_INTERVAL:-0s}" consensus.create_empty_blocks_interval
+dasel put -f /thornode/config/config.toml -v "${CONSENSUS_PEER_GOSSIP_SLEEP_DURATION:-100ms}" consensus.peer_gossip_sleep_duration
+dasel put -f /thornode/config/config.toml -v "${CONSENSUS_PEER_QUERY_MAJ23_SLEEP_DURATION:-2s}" consensus.peer_query_maj23_sleep_duration
+dasel put -f /thornode/config/config.toml -v "${CONSENSUS_DOUBLE_SIGN_CHECK_HEIGHT:-0}" consensus.double_sign_check_height
+
+# Configure additional RPC settings
+echo "Configuring additional RPC settings..."
+dasel put -f /thornode/config/config.toml -v "${RPC_CORS_ALLOWED_METHODS:-[\"HEAD\", \"GET\", \"POST\"]}" rpc.cors_allowed_methods
+dasel put -f /thornode/config/config.toml -v "${RPC_CORS_ALLOWED_HEADERS:-[\"Origin\", \"Accept\", \"Content-Type\", \"X-Requested-With\", \"X-Server-Time\"]}" rpc.cors_allowed_headers
+dasel put -f /thornode/config/config.toml -v "${RPC_UNSAFE:-false}" rpc.unsafe
+dasel put -f /thornode/config/config.toml -v "${RPC_MAX_SUBSCRIPTION_CLIENTS:-100}" rpc.max_subscription_clients
+dasel put -f /thornode/config/config.toml -v "${RPC_MAX_SUBSCRIPTIONS_PER_CLIENT:-5}" rpc.max_subscriptions_per_client
+dasel put -f /thornode/config/config.toml -v "${RPC_EXPERIMENTAL_SUBSCRIPTION_BUFFER_SIZE:-200}" rpc.experimental_subscription_buffer_size
+dasel put -f /thornode/config/config.toml -v "${RPC_EXPERIMENTAL_WEBSOCKET_WRITE_BUFFER_SIZE:-200}" rpc.experimental_websocket_write_buffer_size
+dasel put -f /thornode/config/config.toml -v "${RPC_EXPERIMENTAL_CLOSE_ON_SLOW_CLIENT:-false}" rpc.experimental_close_on_slow_client
+dasel put -f /thornode/config/config.toml -v "${RPC_TIMEOUT_BROADCAST_TX_COMMIT:-10s}" rpc.timeout_broadcast_tx_commit
+dasel put -f /thornode/config/config.toml -v "${RPC_MAX_BODY_BYTES:-1000000}" rpc.max_body_bytes
+dasel put -f /thornode/config/config.toml -v "${RPC_MAX_HEADER_BYTES:-1048576}" rpc.max_header_bytes
+
+# Configure additional State Sync settings
+echo "Configuring additional State Sync settings..."
+dasel put -f /thornode/config/config.toml -v "${STATESYNC_TRUST_HEIGHT:-0}" statesync.trust_height
+dasel put -f /thornode/config/config.toml -v "${STATESYNC_TRUST_HASH:-}" statesync.trust_hash
+dasel put -f /thornode/config/config.toml -v "${STATESYNC_DISCOVERY_TIME:-15s}" statesync.discovery_time
+dasel put -f /thornode/config/config.toml -v "${STATESYNC_CHUNK_REQUEST_TIMEOUT:-10s}" statesync.chunk_request_timeout
+dasel put -f /thornode/config/config.toml -v "${STATESYNC_CHUNK_FETCHERS:-4}" statesync.chunk_fetchers
+
+# Configure additional instrumentation settings
+echo "Configuring additional instrumentation settings..."
+dasel put -f /thornode/config/config.toml -v "${PROMETHEUS_LISTEN_ADDR:-:26660}" instrumentation.prometheus_listen_addr
+dasel put -f /thornode/config/config.toml -v "${PROMETHEUS_MAX_OPEN_CONNECTIONS:-3}" instrumentation.max_open_connections
+
+# Configure FastSync settings
+echo "Configuring FastSync settings..."
+dasel put -f /thornode/config/config.toml -v "${FASTSYNC_VERSION:-v0}" fastsync.version
+
+# Configure tx_index settings
+echo "Configuring TX Index settings..."
+dasel put -f /thornode/config/config.toml -v "${TX_INDEX_INDEXER:-kv}" tx_index.indexer
+
+# Configure basic node settings (that might not be set by default)
+echo "Configuring additional basic node settings..."
+dasel put -f /thornode/config/config.toml -v "${DB_BACKEND:-goleveldb}" db_backend
+dasel put -f /thornode/config/config.toml -v "${DB_DIR:-data}" db_dir
+dasel put -f /thornode/config/config.toml -v "${ABCI:-socket}" abci
+dasel put -f /thornode/config/config.toml -v "${FILTER_PEERS:-false}" filter_peers
 
 echo "P2P addr_book_strict: $(dasel -f /thornode/config/config.toml p2p.addr_book_strict)"
 echo "P2P allow_duplicate_ip: $(dasel -f /thornode/config/config.toml p2p.allow_duplicate_ip)"
