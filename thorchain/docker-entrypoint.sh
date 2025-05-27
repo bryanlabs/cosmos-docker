@@ -127,6 +127,10 @@ dasel put -f /thornode/config/config.toml -v "${P2P_DIAL_TIMEOUT:-10s}" p2p.dial
 dasel put -f /thornode/config/config.toml -v "${P2P_HANDSHAKE_TIMEOUT:-3s}" p2p.handshake_timeout
 dasel put -f /thornode/config/config.toml -v "${P2P_ALLOW_DUPLICATE_IP:-false}" p2p.allow_duplicate_ip
 
+echo "P2P addr_book_strict: $(dasel -f /thornode/config/config.toml p2p.addr_book_strict)"
+echo "P2P allow_duplicate_ip: $(dasel -f /thornode/config/config.toml p2p.allow_duplicate_ip)"
+echo "P2P handshake_timeout: $(dasel -f /thornode/config/config.toml p2p.handshake_timeout)"
+
 # Configure private peer IDs (trusted peers) if provided
 if [ -n "${PRIVATE_PEER_IDS:-}" ]; then
   echo "Configuring private peer IDs (trusted peers): $PRIVATE_PEER_IDS"
