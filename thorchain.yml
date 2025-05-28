@@ -6,6 +6,18 @@ x-logging: &logging
       max-file: "3"
       tag: '{{.ImageName}}|{{.Name}}|{{.ImageFullID}}|{{.FullID}}'
 
+x-restart-policy: &restart-policy
+  restart: unless-stopped
+
+x-thorchain-defaults: &thorchain-defaults
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: 100m
+      max-file: "3"
+      tag: '{{.ImageName}}|{{.Name}}|{{.ImageFullID}}|{{.FullID}}'
+
 services:
   builder:
     restart: "no"
@@ -30,7 +42,7 @@ services:
     image: thorchain:local
     pull_policy: never
     user: thornode
-    restart: unless-stopped
+    <<: *thorchain-defaults
     stop_grace_period: 5m
     environment:
       - THORNODE_VERSION=${THORNODE_VERSION}
@@ -95,9 +107,14 @@ services:
     depends_on:
       builder:
         condition: service_completed_successfully
-    <<: *logging
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${RPC_PORT:-27147}/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     volumes:
-      - /mnt/data/blockchain/:/thornode
+      - ${DATA_DIR:-thornode-data}:/thornode
       - thornode-builds:/builds
     entrypoint:
       - docker-entrypoint.sh

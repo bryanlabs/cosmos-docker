@@ -1,13 +1,21 @@
 # Environment files
 .env
 .env.local
+.env.production
 
-# Docker volumes
+# Docker volumes and data
 data/
 builds/
+logs/
 
 # Logs
 *.log
+
+# Security and sensitive files
+*.key
+*.pem
+*.p12
+secrets/
 
 # OS files
 .DS_Store
@@ -18,6 +26,11 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Backup files
+*.bak
+*.backup
+*~
 
 # Temporary files
 *.tmp

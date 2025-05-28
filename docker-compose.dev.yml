@@ -1,0 +1,34 @@
+# Development override for docker-compose
+# To use: docker compose -f thorchain.yml -f docker-compose.dev.yml up
+
+services:
+  thorchain:
+    # Enable more verbose logging for development
+    environment:
+      - LOG_LEVEL=debug
+      - THORNODE_LOG_FORMAT=json
+    
+    # Mount local directories for easier development/debugging
+    volumes:
+      - ./logs:/var/log/thorchain
+    
+    # Add labels for development identification
+    labels:
+      - "environment=development"
+      - "project=thorchain-docker"
+    
+    # Override healthcheck for faster feedback during development
+    healthcheck:
+      interval: 15s
+      timeout: 5s
+      retries: 2
+      start_period: 30s
+
+  # Add a development tools container
+  dev-tools:
+    image: alpine:latest
+    command: tail -f /dev/null
+    volumes:
+      - thornode-data:/thornode:ro
+    profiles:
+      - dev-tools

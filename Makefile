@@ -1,4 +1,4 @@
-.PHONY: help start stop restart logs status clean build watch monitor
+.PHONY: help start stop restart logs status clean build watch monitor setup-data-dir
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -136,8 +136,12 @@ clean: ## Remove all containers, volumes, and data
 	docker compose down -v --remove-orphans 2>/dev/null || true
 	docker kill $$(docker ps -q) 2>/dev/null || true
 	docker system prune -af --volumes
-	sudo rm -rf /mnt/data/blockchain 2>/dev/null || true
-	sudo mkdir -p /mnt/data/blockchain && sudo chown 10001:10001 /mnt/data/blockchain
+	@if [ -f .env ] && grep -q "^DATA_DIR=" .env; then \
+		DATA_PATH=$$(grep "^DATA_DIR=" .env | cut -d'=' -f2); \
+		echo "⚠️  Custom data directory detected: $$DATA_PATH"; \
+		echo "   Data will NOT be automatically removed for safety."; \
+		echo "   To manually remove: sudo rm -rf $$DATA_PATH"; \
+	fi
 	@echo "✅ Cleanup complete!"
 
 build: ## Force rebuild containers
@@ -147,3 +151,13 @@ update: ## Update to latest version (set THORNODE_VERSION in .env first)
 	docker compose down
 	docker compose build --no-cache
 	docker compose up -d
+
+setup-data-dir: ## Setup custom data directory (requires DATA_DIR in .env)
+	@if [ ! -f .env ]; then echo "❌ .env file not found. Run 'cp thorchain-1.env .env' first."; exit 1; fi
+	@if ! grep -q "^DATA_DIR=" .env; then echo "❌ DATA_DIR not set in .env file. Please configure DATA_DIR=/your/path"; exit 1; fi
+	@DATA_PATH=$$(grep "^DATA_DIR=" .env | cut -d'=' -f2); \
+	echo "🗂️  Setting up data directory: $$DATA_PATH"; \
+	sudo mkdir -p "$$DATA_PATH" && \
+	sudo chown 10001:10001 "$$DATA_PATH" && \
+	echo "✅ Data directory $$DATA_PATH is ready!" || \
+	echo "❌ Failed to setup data directory. Check permissions and path."
