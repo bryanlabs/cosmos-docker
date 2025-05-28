@@ -60,7 +60,7 @@ services:
       - EXTERNAL_ADDRESS=${EXTERNAL_ADDRESS}
       - GENESIS_URL=${GENESIS_URL:-https://storage.googleapis.com/public-snapshots-ninerealms/genesis/17562000.json}
       - LOG_LEVEL=${LOG_LEVEL:-info}
-      - LOG_FORMAT=${LOG_FORMAT:-plain}
+      - THORNODE_LOG_FORMAT=${THORNODE_LOG_FORMAT:-plain}
       - FAST_SYNC=${FAST_SYNC:-true}
       - PROXY_APP=${PROXY_APP:-tcp://127.0.0.1:26658}
       - P2P_SEND_RATE=${P2P_SEND_RATE:-5120000}

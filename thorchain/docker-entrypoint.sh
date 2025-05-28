@@ -102,7 +102,10 @@ echo "Configuring THORNode settings..."
 echo "Configuring basic node settings..."
 dasel put -f /thornode/config/config.toml -v "${PROXY_APP:-tcp://127.0.0.1:26658}" proxy_app
 dasel put -f /thornode/config/config.toml -v "${FAST_SYNC:-true}" fast_sync
-dasel put -f /thornode/config/config.toml -v "${LOG_FORMAT:-plain}" log_format
+# Configure log format - use THORNODE_LOG_FORMAT (defaults to 'plain' if not set)
+LOG_FORMAT_VALUE="${THORNODE_LOG_FORMAT:-plain}"
+echo "Setting log format to: $LOG_FORMAT_VALUE"
+dasel put -f /thornode/config/config.toml -v "$LOG_FORMAT_VALUE" log_format
 
 # Configure seed nodes
 if [ -n "${SEEDS:-}" ]; then
