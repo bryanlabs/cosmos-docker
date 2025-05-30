@@ -140,11 +140,14 @@ if [[ ! -f ${DAEMON_HOME}/.initialized ]]; then
   fi
   
   # Verify the configuration was written correctly
-  ACTUAL_P2P_LADDR=$(dasel select -f "$CONFIG_FILE" 'p2p.laddr' 2>/dev/null || echo "FAILED_TO_READ")
+  # Try current dasel syntax first, fallback to alternative if needed
+  ACTUAL_P2P_LADDR=$(dasel -f "$CONFIG_FILE" 'p2p.laddr' 2>/dev/null || echo "FAILED_TO_READ")
+  # Alternative syntax: ACTUAL_P2P_LADDR=$(dasel select -f "$CONFIG_FILE" 'p2p.laddr' 2>/dev/null || echo "FAILED_TO_READ")
   echo "Verified p2p.laddr set to: $ACTUAL_P2P_LADDR"
   
   if [ -n "${EXTERNAL_ADDRESS:-}" ] && [ "$EXTERNAL_ADDRESS" != "" ]; then
-    ACTUAL_EXTERNAL_ADDR=$(dasel select -f "$CONFIG_FILE" 'p2p.external_address' 2>/dev/null || echo "FAILED_TO_READ")
+    ACTUAL_EXTERNAL_ADDR=$(dasel -f "$CONFIG_FILE" 'p2p.external_address' 2>/dev/null || echo "FAILED_TO_READ")
+    # Alternative syntax: ACTUAL_EXTERNAL_ADDR=$(dasel select -f "$CONFIG_FILE" 'p2p.external_address' 2>/dev/null || echo "FAILED_TO_READ")
     echo "Verified p2p.external_address set to: $ACTUAL_EXTERNAL_ADDR"
   fi
   
