@@ -1,4 +1,6 @@
 #!/bin/bash
+# validation script for generic cosmos docker setup
+
 set -e
 
 # Colors for output
@@ -78,10 +80,10 @@ validate_yaml() {
     print_header "Validating YAML Files"
     
     # First, test the main configuration
-    if docker-compose -f thorchain.yml config --quiet; then
-        print_success "thorchain.yml syntax is valid"
+    if docker-compose -f cosmos.yml config --quiet; then
+        print_success "cosmos.yml syntax is valid"
     else
-        print_error "thorchain.yml has syntax errors"
+        print_error "cosmos.yml has syntax errors"
         return 1
     fi
     
@@ -89,9 +91,9 @@ validate_yaml() {
     if [ -f "docker-compose.dev.yml" ]; then
         # Create a minimal test environment for validation
         echo "THORNODE_VERSION=mainnet-23.105.1" > .env.test
-        echo "DATA_DIR=test-data" >> .env.test
+        echo "DATA_DIR=" >> .env.test
         
-        if docker-compose -f thorchain.yml -f docker-compose.dev.yml --env-file .env.test config --quiet; then
+        if docker-compose -f cosmos.yml -f docker-compose.dev.yml --env-file .env.test config --quiet; then
             print_success "Development override configuration is valid"
         else
             print_warning "Development override configuration has validation issues (may need build context)"
@@ -162,7 +164,7 @@ test_makefile() {
 check_file_structure() {
     print_header "Checking File Structure"
     
-    local required_files=("README.md" "thorchain.yml" "Makefile")
+    local required_files=("README.md" "cosmos.yml" "Makefile")
     local recommended_files=("LICENSE" "CONTRIBUTING.md" ".gitignore" ".env.example")
     
     for file in "${required_files[@]}"; do
@@ -201,26 +203,29 @@ test_docker_services() {
     print_status $BLUE "Only validating configuration syntax..."
     
     # Create test environment with required variables
-    echo "DATA_DIR=validate-test-data" > .env.validate
+    echo "DATA_DIR=" > .env.validate
     echo "THORNODE_VERSION=mainnet-23.105.1" >> .env.validate
     echo "FORCE_REBUILD=false" >> .env.validate
-    echo "NETWORK=thorchain-mainnet-v1" >> .env.validate
+    echo "NETWORK=cosmoshub-4" >> .env.validate
+    echo "DAEMON_NAME=gaiad" >> .env.validate
+    echo "NODE_VERSION=v18.1.0" >> .env.validate
+    echo "MONIKER=test-node" >> .env.validate
     echo "MONIKER=test-node" >> .env.validate
     
     # Test service definitions without any Docker operations
-    if docker-compose -f thorchain.yml --env-file .env.validate config --quiet >/dev/null 2>&1; then
+    if docker-compose -f cosmos.yml --env-file .env.validate config --quiet >/dev/null 2>&1; then
         print_success "Docker Compose services are properly defined"
     else
         print_error "Docker Compose service definitions have errors"
         print_status $BLUE "Running detailed config check..."
-        docker-compose -f thorchain.yml --env-file .env.validate config 2>&1 | head -10
+        docker-compose -f cosmos.yml --env-file .env.validate config 2>&1 | head -10
         rm -f .env.validate
         return 1
     fi
     
     # Test development override configuration
     if [ -f "docker-compose.dev.yml" ]; then
-        if docker-compose -f thorchain.yml -f docker-compose.dev.yml --env-file .env.validate config --quiet >/dev/null 2>&1; then
+        if docker-compose -f cosmos.yml -f docker-compose.dev.yml --env-file .env.validate config --quiet >/dev/null 2>&1; then
             print_success "Development override configuration works"
         else
             print_warning "Development override has validation issues (may be normal)"
@@ -274,7 +279,7 @@ security_checks() {
 
 # Main execution
 main() {
-    print_header "THORChain Docker Validation Script"
+    print_header "Cosmos Docker Validation Script"
     echo "This script validates the project structure and configuration files."
     echo
     
@@ -293,7 +298,7 @@ main() {
     if [ $failed_checks -eq 0 ]; then
         print_success "All validation checks passed! 🎉"
         echo
-        print_status $GREEN "Your THORChain Docker setup is ready for deployment."
+        print_status $GREEN "Your Cosmos Docker setup is ready for deployment."
         exit 0
     else
         print_error "$failed_checks validation check(s) failed"

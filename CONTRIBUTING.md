@@ -1,17 +1,17 @@
-# Contributing to THORChain Docker
+# Contributing to Cosmos Docker
 
-Thank you for your interest in contributing to the THORChain Docker project! This document provides guidelines for contributing.
+Thank you for your interest in contributing to the Cosmos Docker project! This document provides guidelines for contributing.
 
 ## Getting Started
 
 1. Fork the repository
-2. Clone your fork: `git clone https://github.com/yourusername/thorchain-docker.git`
+2. Clone your fork: `git clone https://github.com/yourusername/cosmos-docker.git`
 3. Create a feature branch: `git checkout -b feature/my-new-feature`
 
 ## Development Setup
 
 1. Ensure you have Docker and Docker Compose installed
-2. Copy the environment file: `cp thorchain-1.env .env`
+2. Copy the environment file: `cp cosmoshub-4.env .env` (or any other chain configuration)
 3. Test your changes: `make start`
 
 ## Testing Changes

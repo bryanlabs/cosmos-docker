@@ -1,6 +1,6 @@
 # Development Guide
 
-This guide is for developers who want to contribute to the THORChain Docker project or customize it for their own needs.
+This guide is for developers who want to contribute to the Cosmos Docker project or customize it for their own chains.
 
 ## Development Setup
 
@@ -21,8 +21,8 @@ This guide is for developers who want to contribute to the THORChain Docker proj
 
 1. **Clone and enter the repository:**
    ```bash
-   git clone https://github.com/thorchain/thorchain-docker.git
-   cd thorchain-docker
+   git clone https://github.com/cosmos/cosmos-docker.git
+   cd cosmos-docker
    ```
 
 2. **Validate your setup:**

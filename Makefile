@@ -6,29 +6,36 @@ help: ## Show this help message
 	@echo 'Targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-15s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-start: ## Start THORChain node with complete monitoring
-	@echo "🚀 Starting THORChain Node..."
-	@if [ ! -f .env ]; then cp thorchain-1.env .env; echo "✅ Created .env file from thorchain-1.env"; fi
+start: ## Start Cosmos node with complete monitoring
+	@echo "🚀 Starting Cosmos Node..."
+	@if [ ! -f .env ]; then \
+		echo "❌ .env file not found!"; \
+		echo "Please copy a chain environment file to .env first:"; \
+		echo "  cp thorchain-1.env .env"; \
+		echo "  cp cosmoshub-4.env .env"; \
+		echo "  cp osmosis-1.env .env"; \
+		exit 1; \
+	fi
 	@echo "📋 Current configuration:"
-	@grep "THORNODE_VERSION\|RPC_PORT\|P2P_PORT" .env | sed 's/^/   /'
+	@grep "NODE_VERSION\|NETWORK\|DAEMON_NAME\|RPC_PORT\|P2P_PORT" .env | sed 's/^/   /' || true
 	@echo ""
 	@echo "🐳 Starting Docker containers in background..."
 	docker compose up -d --no-deps builder
 	@echo ""
-	@echo "🔨 Following builder logs (will switch to thorchain when ready)..."
+	@echo "🔨 Following builder logs (will switch to cosmos when ready)..."
 	@make watch-all
 
-stop: ## Stop THORChain node
-	@echo "🛑 Stopping THORChain node..."
+stop: ## Stop Cosmos node
+	@echo "🛑 Stopping Cosmos node..."
 	docker compose down
 
-restart: ## Restart THORChain node
-	@echo "🔄 Restarting THORChain node..."
+restart: ## Restart Cosmos node
+	@echo "🔄 Restarting Cosmos node..."
 	docker compose restart
-	@make watch-thorchain
+	@make watch-cosmos
 
-logs: ## Show logs for thorchain service
-	docker compose logs -f thorchain
+logs: ## Show logs for cosmos service
+	docker compose logs -f cosmos
 
 logs-builder: ## Show logs for builder service
 	docker compose logs -f builder
@@ -36,14 +43,14 @@ logs-builder: ## Show logs for builder service
 logs-all: ## Show logs for all services
 	docker compose logs -f
 
-watch-all: ## Watch both builder and thorchain services intelligently
+watch-all: ## Watch both builder and cosmos services intelligently
 	@echo "👀 Watching all services..."
 	@docker compose logs -f builder 2>/dev/null | while read line; do \
 		echo "🔨 BUILDER: $$line"; \
-		if echo "$$line" | grep -q "thornode binary is ready\|Build complete\|Successfully tagged"; then \
+		if echo "$$line" | grep -q "binary is ready\|Build complete\|Successfully tagged"; then \
 			echo "✅ Builder service completed successfully!"; \
-			echo "🚀 Starting thorchain service..."; \
-			docker compose up -d thorchain >/dev/null 2>&1; \
+			echo "🚀 Starting cosmos service..."; \
+			docker compose up -d cosmos >/dev/null 2>&1; \
 			break; \
 		fi; \
 		if echo "$$line" | grep -q "ERROR\|FATAL\|failed"; then \
@@ -51,14 +58,14 @@ watch-all: ## Watch both builder and thorchain services intelligently
 			exit 1; \
 		fi; \
 	done && \
-	echo "⚡ Now following thorchain service..." && \
-	docker compose logs -f thorchain 2>/dev/null | while read line; do \
-		echo "⚡ THORCHAIN: $$line"; \
+	echo "⚡ Now following cosmos service..." && \
+	docker compose logs -f cosmos 2>/dev/null | while read line; do \
+		echo "⚡ COSMOS: $$line"; \
 		if echo "$$line" | grep -q "started\|sync_info\|started HTTP server\|RPC server\|started P2P\|consensus"; then \
-			echo "🎉 THORChain node is starting up!"; \
+			echo "🎉 Cosmos node is starting up!"; \
 		fi; \
 		if echo "$$line" | grep -q "Initialization complete\|snapshot applied\|started successfully"; then \
-			echo "✅ THORChain node initialization completed!"; \
+			echo "✅ Cosmos node initialization completed!"; \
 			echo ""; \
 			echo "🌐 Node should be accessible at:"; \
 			echo "   RPC: http://localhost:$$(grep RPC_PORT .env | cut -d'=' -f2)"; \
@@ -69,16 +76,16 @@ watch-all: ## Watch both builder and thorchain services intelligently
 			break; \
 		fi; \
 		if echo "$$line" | grep -q "ERROR.*database\|FATAL\|panic"; then \
-			echo "❌ THORChain node encountered a critical error!"; \
+			echo "❌ Cosmos node encountered a critical error!"; \
 			break; \
 		fi; \
 	done
 
-watch-builder: ## Watch builder service until thornode binary is ready
+watch-builder: ## Watch builder service until node binary is ready
 	@echo "👀 Watching builder service..."
 	@docker compose logs -f builder --since 0s | while read line; do \
 		echo "🔨 BUILDER: $$line"; \
-		if echo "$$line" | grep -q "thornode binary is ready\|Build complete\|Successfully tagged"; then \
+		if echo "$$line" | grep -q "binary is ready\|Build complete\|Successfully tagged"; then \
 			echo "✅ Builder service completed successfully!"; \
 			break; \
 		fi; \
@@ -88,15 +95,15 @@ watch-builder: ## Watch builder service until thornode binary is ready
 		fi; \
 	done
 
-watch-thorchain: ## Watch thorchain service until node is ready
-	@echo "👀 Watching thorchain service..."
-	@timeout 1800 docker compose logs -f thorchain 2>/dev/null | while read line; do \
-		echo "⚡ THORCHAIN: $$line"; \
+watch-cosmos: ## Watch cosmos service until node is ready
+	@echo "👀 Watching cosmos service..."
+	@timeout 1800 docker compose logs -f cosmos 2>/dev/null | while read line; do \
+		echo "⚡ COSMOS: $$line"; \
 		if echo "$$line" | grep -q "started\|sync_info\|started HTTP server\|RPC server\|started P2P\|consensus"; then \
-			echo "🎉 THORChain node is starting up!"; \
+			echo "🎉 Cosmos node is starting up!"; \
 		fi; \
 		if echo "$$line" | grep -q "Initialization complete\|snapshot applied\|started successfully"; then \
-			echo "✅ THORChain node initialization completed!"; \
+			echo "✅ Cosmos node initialization completed!"; \
 			echo ""; \
 			echo "🌐 Node should be accessible at:"; \
 			echo "   RPC: http://localhost:$$(grep RPC_PORT .env | cut -d'=' -f2)"; \
@@ -107,10 +114,10 @@ watch-thorchain: ## Watch thorchain service until node is ready
 			break; \
 		fi; \
 		if echo "$$line" | grep -q "ERROR.*database\|FATAL\|panic"; then \
-			echo "❌ THORChain node encountered a critical error!"; \
+			echo "❌ Cosmos node encountered a critical error!"; \
 			break; \
 		fi; \
-	done || echo "⚠️  THORChain monitoring timed out after 30 minutes"
+	done || echo "⚠️  Cosmos monitoring timed out after 30 minutes"
 
 monitor: ## Run the monitoring script
 	@if [ -f monitor.sh ]; then \
@@ -147,7 +154,7 @@ clean: ## Remove all containers, volumes, and data
 build: ## Force rebuild containers
 	docker compose build --no-cache
 
-update: ## Update to latest version (set THORNODE_VERSION in .env first)
+update: ## Update to latest version (set NODE_VERSION in .env first)
 	docker compose down
 	docker compose build --no-cache
 	docker compose up -d
@@ -161,3 +168,47 @@ setup-data-dir: ## Setup custom data directory (requires DATA_DIR in .env)
 	sudo chown 10001:10001 "$$DATA_PATH" && \
 	echo "✅ Data directory $$DATA_PATH is ready!" || \
 	echo "❌ Failed to setup data directory. Check permissions and path."
+
+## Development targets
+
+dev: ## Start with development configuration (debug logging, faster health checks)
+	@echo "🛠️  Starting in development mode..."
+	@if [ ! -f .env ]; then \
+		echo "❌ .env file not found!"; \
+		echo "Please copy a chain environment file to .env first"; \
+		exit 1; \
+	fi
+	docker compose -f cosmos.yml -f docker-compose.dev.yml up -d
+
+dev-tools: ## Start with development tools (includes utilities like curl, jq, htop)
+	@echo "🔧 Starting with development tools..."
+	docker compose -f cosmos.yml -f docker-compose.dev.yml --profile dev-tools up -d
+	@echo ""
+	@echo "💡 Access development tools with:"
+	@echo "   docker compose exec dev-tools bash"
+
+dev-monitor: ## Start with full monitoring stack (Prometheus + Grafana)
+	@echo "📊 Starting with monitoring stack..."
+	docker compose -f cosmos.yml -f docker-compose.dev.yml --profile monitoring up -d
+	@echo ""
+	@echo "📈 Access monitoring at:"
+	@echo "   Grafana: http://localhost:3000 (admin/admin)"
+	@echo "   Prometheus: http://localhost:9090"
+
+dev-all: ## Start with all development features (tools + monitoring + logging)
+	@echo "🚀 Starting full development environment..."
+	docker compose -f cosmos.yml -f docker-compose.dev.yml --profile dev-tools --profile monitoring --profile logging up -d
+	@echo ""
+	@echo "🎯 Development environment ready:"
+	@echo "   Node: http://localhost:$$(grep RPC_PORT .env | cut -d'=' -f2 | head -1)"
+	@echo "   Grafana: http://localhost:3000 (admin/admin)"
+	@echo "   Prometheus: http://localhost:9090"
+	@echo "   Loki: http://localhost:3100"
+	@echo "   Tools: docker compose exec dev-tools bash"
+
+dev-stop: ## Stop development environment
+	@echo "🛑 Stopping development environment..."
+	docker compose -f cosmos.yml -f docker-compose.dev.yml --profile dev-tools --profile monitoring --profile logging down
+
+dev-logs: ## Show development logs
+	docker compose -f cosmos.yml -f docker-compose.dev.yml logs -f cosmos

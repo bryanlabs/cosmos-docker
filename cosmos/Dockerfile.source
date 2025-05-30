@@ -1,0 +1,42 @@
+# Get dasel for config management
+FROM ghcr.io/tomwright/dasel:2-alpine AS dasel
+
+# Base image for the final stage
+FROM alpine:3.18
+
+ARG USER=cosmos
+ARG UID=10001
+ARG NODE_VERSION
+
+ENV VERSION_NUMBER=${NODE_VERSION#v}
+
+RUN apk update && apk add --no-cache ca-certificates tzdata bash curl wget jq tar pv aria2
+
+# See https://stackoverflow.com/a/55757473/12429735RUN
+RUN adduser \
+    --disabled-password \
+    --gecos "" \
+    --shell "/sbin/nologin" \
+    --uid "${UID}" \
+    "${USER}"
+
+VOLUME /${USER}
+
+RUN mkdir -p /${USER}/config
+RUN mkdir -p /${USER}/data
+
+# Copy dasel for config management
+COPY --from=dasel --chown=${USER}:${USER} /usr/local/bin/dasel /usr/local/bin/
+
+# Set correct permissions
+RUN chown -R ${USER}:${USER} /${USER} && chmod -R 700 /${USER}
+
+# Cannot assume buildkit, hence no chmod
+COPY ./docker-entrypoint.sh /usr/local/bin/
+
+# Belt and suspenders
+RUN chmod -R 755 /usr/local/bin/*
+
+USER ${USER}
+
+ENTRYPOINT ["docker-entrypoint.sh"]

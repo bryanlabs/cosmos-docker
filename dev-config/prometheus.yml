@@ -1,0 +1,24 @@
+# Prometheus configuration for development monitoring
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'cosmos-node'
+    static_configs:
+      - targets: ['cosmos:26660']  # Default Tendermint metrics port
+    scrape_interval: 5s
+    metrics_path: /
+    
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+rule_files:
+  # Add any custom alerting rules here
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          # Add alertmanager targets if needed
