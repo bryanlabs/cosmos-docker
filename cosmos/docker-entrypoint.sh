@@ -7,8 +7,18 @@ NODE_VERSION=${NODE_VERSION:-v1.0.0}
 DAEMON_HOME=${DAEMON_HOME:-/${DAEMON_NAME}}
 
 # Ensure bin directory exists and copy the binary from builds (always do this)
-mkdir -p ${DAEMON_HOME}/bin
-cp /builds/${DAEMON_NAME}-${NODE_VERSION} ${DAEMON_HOME}/bin/${DAEMON_NAME}
+if ! mkdir -p ${DAEMON_HOME}/bin; then
+  echo "❌ Failed to create ${DAEMON_HOME}/bin directory. Check permissions."
+  exit 1
+fi
+
+if ! cp /builds/${DAEMON_NAME}-${NODE_VERSION} ${DAEMON_HOME}/bin/${DAEMON_NAME}; then
+  echo "❌ Failed to copy binary from /builds/${DAEMON_NAME}-${NODE_VERSION} to ${DAEMON_HOME}/bin/${DAEMON_NAME}"
+  echo "Available files in /builds:"
+  ls -la /builds/ || echo "Could not list /builds directory"
+  exit 1
+fi
+
 chmod +x ${DAEMON_HOME}/bin/${DAEMON_NAME}
 
 if [[ ! -f ${DAEMON_HOME}/.initialized ]]; then
@@ -43,7 +53,7 @@ if [[ ! -f ${DAEMON_HOME}/.initialized ]]; then
     echo "Fetching latest snapshot automatically..."
     
     # Extract chain name from snapshot API URL for dynamic snapshot detection
-    CHAIN_PREFIX=$(echo "$SNAPSHOT_API_URL" | grep -oP 'prefix=\K[^&]*' || echo "$DAEMON_NAME")
+    CHAIN_PREFIX=$(echo "$SNAPSHOT_API_URL" | grep -oE 'prefix=[^&]*' | cut -d'=' -f2 || echo "$DAEMON_NAME")
     
     FILENAME=$(curl -s "$SNAPSHOT_API_URL" | grep -Eo "${CHAIN_PREFIX}/[0-9]+.tar.gz" | sort -n | tail -n 1 | cut -d "/" -f 2)
     if [ -n "$FILENAME" ]; then
@@ -114,7 +124,7 @@ if [[ ! -f ${DAEMON_HOME}/.initialized ]]; then
   fi
   
   # Port Configuration
-  if ! dasel put -f "$CONFIG_FILE" -v "tcp://0.0.0.0:${RPC_PORT:-26657}" 'rpc.laddr'; then
+  if ! dasel put -t string -f "$CONFIG_FILE" -v "tcp://0.0.0.0:${RPC_PORT:-26657}" 'rpc.laddr'; then
     echo "ERROR: Failed to set rpc.laddr in config file"
     exit 1
   fi
@@ -123,17 +133,18 @@ if [[ ! -f ${DAEMON_HOME}/.initialized ]]; then
   echo "Setting p2p.laddr to: tcp://0.0.0.0:$P2P_PORT"
 
   # Update p2p.laddr configuration with explicit type to ensure proper formatting
-  if ! dasel put -t string -f "$CONFIG_FILE" -v "tcp://0.0.0.0:$P2P_PORT" 'p2p.laddr'; then
+  P2P_LADDR_VALUE="tcp://0.0.0.0:$P2P_PORT"
+  if ! dasel put -t string -f "$CONFIG_FILE" -v "$P2P_LADDR_VALUE" 'p2p.laddr'; then
     echo "ERROR: Failed to set p2p.laddr in config file"
     exit 1
   fi
   
   # Verify the configuration was written correctly
-  ACTUAL_P2P_LADDR=$(dasel select -f "$CONFIG_FILE" 'p2p.laddr' || echo "FAILED_TO_READ")
+  ACTUAL_P2P_LADDR=$(dasel select -f "$CONFIG_FILE" 'p2p.laddr' 2>/dev/null || echo "FAILED_TO_READ")
   echo "Verified p2p.laddr set to: $ACTUAL_P2P_LADDR"
   
   if [ -n "${EXTERNAL_ADDRESS:-}" ] && [ "$EXTERNAL_ADDRESS" != "" ]; then
-    ACTUAL_EXTERNAL_ADDR=$(dasel select -f "$CONFIG_FILE" 'p2p.external_address' || echo "FAILED_TO_READ")
+    ACTUAL_EXTERNAL_ADDR=$(dasel select -f "$CONFIG_FILE" 'p2p.external_address' 2>/dev/null || echo "FAILED_TO_READ")
     echo "Verified p2p.external_address set to: $ACTUAL_EXTERNAL_ADDR"
   fi
   

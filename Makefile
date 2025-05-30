@@ -7,7 +7,6 @@ help: ## Show this help message
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-15s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 start: ## Start Cosmos node with complete monitoring
-	@echo "🚀 Starting Cosmos Node..."
 	@if [ ! -f .env ]; then \
 		echo "❌ .env file not found!"; \
 		echo "Please copy a chain environment file to .env first:"; \
@@ -16,13 +15,33 @@ start: ## Start Cosmos node with complete monitoring
 		echo "  cp osmosis-1.env .env"; \
 		exit 1; \
 	fi
-	@echo "📋 Current configuration:"
-	@grep "NODE_VERSION\|NETWORK\|DAEMON_NAME\|RPC_PORT\|P2P_PORT" .env | sed 's/^/   /' || true
-	@echo ""
-	@echo "🐳 Starting Docker containers in background..."
-	docker compose up -d --no-deps builder
-	@echo ""
-	@echo "🔨 Following builder logs (will switch to cosmos when ready)..."
+	@NETWORK_NAME=$$(grep "^NETWORK=" .env | cut -d'=' -f2 | head -1); \
+	NODE_VERSION=$$(grep "^NODE_VERSION=" .env | cut -d'=' -f2 | head -1); \
+	DAEMON_NAME=$$(grep "^DAEMON_NAME=" .env | cut -d'=' -f2 | head -1); \
+	RPC_PORT=$$(grep "^RPC_PORT=" .env | cut -d'=' -f2 | head -1); \
+	if [ -z "$$RPC_PORT" ]; then RPC_PORT=26657; fi; \
+	P2P_PORT=$$(grep "^P2P_PORT=" .env | cut -d'=' -f2 | head -1); \
+	if [ -z "$$P2P_PORT" ]; then P2P_PORT=26656; fi; \
+	DATA_DIR=$$(grep "^DATA_DIR=" .env | cut -d'=' -f2 | head -1); \
+	if [ -n "$$DATA_DIR" ]; then \
+		RESOLVED_DATA_DIR=$$(echo "$$DATA_DIR" | sed "s/\$${NETWORK}/$$NETWORK_NAME/g"); \
+	else \
+		RESOLVED_DATA_DIR="Using Docker volume (default)"; \
+	fi; \
+	echo "🚀 Starting $$NETWORK_NAME Node..."; \
+	echo ""; \
+	echo "📋 Current configuration:"; \
+	echo "   NODE_VERSION=$$NODE_VERSION"; \
+	echo "   NETWORK=$$NETWORK_NAME"; \
+	echo "   DAEMON_NAME=$$DAEMON_NAME"; \
+	echo "   RPC_PORT=$$RPC_PORT"; \
+	echo "   P2P_PORT=$$P2P_PORT"; \
+	echo "   DATA_DIR=$$RESOLVED_DATA_DIR"; \
+	echo ""; \
+	echo "🐳 Starting Docker containers in background..."; \
+	docker compose up -d --no-deps builder; \
+	echo ""; \
+	echo "🔨 Following builder logs (will switch to cosmos when ready)..."
 	@make watch-all
 
 stop: ## Stop Cosmos node
@@ -67,10 +86,6 @@ watch-all: ## Watch both builder and cosmos services intelligently
 		if echo "$$line" | grep -q "Initialization complete\|snapshot applied\|started successfully"; then \
 			echo "✅ Cosmos node initialization completed!"; \
 			echo ""; \
-			echo "🌐 Node should be accessible at:"; \
-			echo "   RPC: http://localhost:$$(grep RPC_PORT .env | cut -d'=' -f2)"; \
-			echo "   P2P: localhost:$$(grep P2P_PORT .env | cut -d'=' -f2)"; \
-			echo ""; \
 			echo "📊 Check node status with: make status"; \
 			echo "📱 Monitor with: make monitor"; \
 			break; \
@@ -105,10 +120,6 @@ watch-cosmos: ## Watch cosmos service until node is ready
 		if echo "$$line" | grep -q "Initialization complete\|snapshot applied\|started successfully"; then \
 			echo "✅ Cosmos node initialization completed!"; \
 			echo ""; \
-			echo "🌐 Node should be accessible at:"; \
-			echo "   RPC: http://localhost:$$(grep RPC_PORT .env | cut -d'=' -f2)"; \
-			echo "   P2P: localhost:$$(grep P2P_PORT .env | cut -d'=' -f2)"; \
-			echo ""; \
 			echo "📊 Check node status with: make status"; \
 			echo "📱 Monitor with: make monitor"; \
 			break; \
@@ -130,8 +141,22 @@ status: ## Show comprehensive node status
 	@echo "🔍 === Docker Compose Status ==="
 	docker compose ps
 	@echo ""
-	@echo "🌐 === Node Network Status ==="
-	@curl -s http://localhost:$$(grep RPC_PORT .env | cut -d'=' -f2)/status | jq '.result.sync_info' 2>/dev/null || echo "❌ Node not accessible or jq not installed"
+	@if [ -f .env ]; then \
+		NETWORK_NAME=$$(grep "^NETWORK=" .env | cut -d'=' -f2 | head -1); \
+		RPC_PORT=$$(grep "^RPC_PORT=" .env | cut -d'=' -f2 | head -1); \
+		if [ -z "$$RPC_PORT" ]; then RPC_PORT=26657; fi; \
+		P2P_PORT=$$(grep "^P2P_PORT=" .env | cut -d'=' -f2 | head -1); \
+		if [ -z "$$P2P_PORT" ]; then P2P_PORT=26656; fi; \
+		echo "🌐 === Node Access Information ==="; \
+		echo "   Network: $$NETWORK_NAME"; \
+		echo "   RPC: http://localhost:$$RPC_PORT"; \
+		echo "   P2P: localhost:$$P2P_PORT"; \
+		echo ""; \
+		echo "🌐 === Node Network Status ==="; \
+		curl -s http://localhost:$$RPC_PORT/status | jq '.result.sync_info' 2>/dev/null || echo "❌ Node not accessible or jq not installed"; \
+	else \
+		echo "❌ .env file not found"; \
+	fi
 	@echo ""
 	@echo "🔗 === Quick Commands ==="
 	@echo "   Logs:     make logs"
