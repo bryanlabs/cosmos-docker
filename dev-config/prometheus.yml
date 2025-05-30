@@ -6,13 +6,25 @@ global:
 scrape_configs:
   - job_name: 'cosmos-node'
     static_configs:
-      - targets: ['cosmos:26660']  # Default Tendermint metrics port
+      - targets: ['cosmos:26660']  # Tendermint metrics port (PROMETHEUS_PORT)
     scrape_interval: 5s
     metrics_path: /
     
+  - job_name: 'cosmos-node-exporter'
+    static_configs:
+      - targets: ['cosmos-node-exporter:9300']  # Cosmos node exporter
+    scrape_interval: 15s
+    metrics_path: /metrics
+    
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']  # Node exporter default port
+    scrape_interval: 15s
+    metrics_path: /metrics
+    
   - job_name: 'prometheus'
     static_configs:
-      - targets: ['localhost:9090']
+      - targets: ['localhost:9090']  # Prometheus self-monitoring (internal port)
 
 rule_files:
   # Add any custom alerting rules here

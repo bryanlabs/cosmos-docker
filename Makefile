@@ -220,7 +220,7 @@ dev-monitor: ## Start with full monitoring stack (Prometheus + Grafana)
 	@echo ""
 	@echo "📈 Access monitoring at:"
 	@echo "   Grafana: http://localhost:3000 (admin/admin)"
-	@echo "   Prometheus: http://localhost:9090"
+	@echo "   Prometheus: http://localhost:9092"
 
 dev-all: ## Start with all development features (tools + monitoring + logging)
 	@echo "🚀 Starting full development environment..."
@@ -229,7 +229,7 @@ dev-all: ## Start with all development features (tools + monitoring + logging)
 	@echo "🎯 Development environment ready:"
 	@echo "   Node: http://localhost:$$(grep RPC_PORT .env | cut -d'=' -f2 | head -1)"
 	@echo "   Grafana: http://localhost:3000 (admin/admin)"
-	@echo "   Prometheus: http://localhost:9090"
+	@echo "   Prometheus: http://localhost:9092"
 	@echo "   Loki: http://localhost:3100"
 	@echo "   Tools: docker compose exec dev-tools bash"
 

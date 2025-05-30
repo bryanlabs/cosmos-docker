@@ -67,10 +67,27 @@ services:
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--web.enable-lifecycle'
     ports:
-      - "9090:9090"
+      - "9092:9090"
     volumes:
       - ./dev-config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
+    profiles:
+      - monitoring
+    labels:
+      - "environment=development"
+      - "service=monitoring"
+
+  # Node exporter for system metrics
+  node-exporter:
+    image: prom/node-exporter:latest
+    command:
+      - '--path.rootfs=/host'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - "9100:9100"
+    restart: unless-stopped
+    volumes:
+      - '/:/host:ro,rslave'
     profiles:
       - monitoring
     labels:
@@ -106,6 +123,26 @@ services:
     labels:
       - "environment=development"
       - "service=monitoring"
+
+  # Cosmos Node Exporter for RPC node monitoring
+  cosmos-node-exporter:
+    image: ghcr.io/solarlabsteam/cosmos-exporter:latest
+    command:
+      - --tendermint-rpc=http://cosmos:${RPC_PORT:-26657}
+      - --node=http://cosmos:${REST_PORT:-1317}
+      - --listen-address=0.0.0.0:9300
+      - --log-level=info
+    ports:
+      - "9300:9300"
+    restart: unless-stopped
+    depends_on:
+      - cosmos
+    profiles:
+      - monitoring
+    labels:
+      - "environment=development" 
+      - "service=monitoring"
+      - "component=cosmos-node-exporter"
 
 volumes:
   prometheus-data:
