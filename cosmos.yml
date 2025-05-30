@@ -28,6 +28,8 @@ services:
     pull_policy: never
     environment:
       - NODE_VERSION=${NODE_VERSION}
+      - NODE_REPO=${NODE_REPO}
+      - DAEMON_NAME=${DAEMON_NAME}
       - FORCE_REBUILD=${FORCE_REBUILD}
     volumes:
       - node-builds:/builds
