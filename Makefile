@@ -39,7 +39,7 @@ start: ## Start Cosmos node with complete monitoring
 	echo "   DATA_DIR=$$RESOLVED_DATA_DIR"; \
 	echo ""; \
 	echo "🐳 Starting Docker containers in background..."; \
-	docker compose up -d --no-deps builder; \
+	HOST_UID=$$(id -u) HOST_GID=$$(id -g) docker compose up -d --no-deps builder; \
 	echo ""; \
 	echo "🔨 Following builder logs (will switch to cosmos when ready)..."
 	@make watch-all
@@ -69,7 +69,7 @@ watch-all: ## Watch both builder and cosmos services intelligently
 		if echo "$$line" | grep -q "binary is ready\|Build complete\|Successfully tagged"; then \
 			echo "✅ Builder service completed successfully!"; \
 			echo "🚀 Starting cosmos service..."; \
-			docker compose up -d cosmos >/dev/null 2>&1; \
+			HOST_UID=$$(id -u) HOST_GID=$$(id -g) docker compose up -d cosmos >/dev/null 2>&1; \
 			break; \
 		fi; \
 		if echo "$$line" | grep -q "ERROR\|FATAL\|failed"; then \
@@ -179,12 +179,12 @@ clean: ## Remove all containers, volumes, and data
 	@echo "✅ Cleanup complete!"
 
 build: ## Force rebuild containers
-	docker compose build --no-cache
+	HOST_UID=$$(id -u) HOST_GID=$$(id -g) docker compose build --no-cache
 
 update: ## Update to latest version (set NODE_VERSION in .env first)
 	docker compose down
-	docker compose build --no-cache
-	docker compose up -d
+	HOST_UID=$$(id -u) HOST_GID=$$(id -g) docker compose build --no-cache
+	HOST_UID=$$(id -u) HOST_GID=$$(id -g) docker compose up -d
 
 setup-data-dir: ## Setup custom data directory (requires DATA_DIR in .env)
 	@if [ ! -f .env ]; then echo "❌ .env file not found. Copy a chain-specific .env file first (e.g., cp cosmoshub-4.env .env)"; exit 1; fi
@@ -192,7 +192,7 @@ setup-data-dir: ## Setup custom data directory (requires DATA_DIR in .env)
 	@DATA_PATH=$$(grep "^DATA_DIR=" .env | cut -d'=' -f2); \
 	echo "🗂️  Setting up data directory: $$DATA_PATH"; \
 	sudo mkdir -p "$$DATA_PATH" && \
-	sudo chown 10001:10001 "$$DATA_PATH" && \
+	sudo chown $$(id -u):$$(id -g) "$$DATA_PATH" && \
 	echo "✅ Data directory $$DATA_PATH is ready!" || \
 	echo "❌ Failed to setup data directory. Check permissions and path."
 
@@ -205,11 +205,11 @@ dev: ## Start with development configuration (debug logging, faster health check
 		echo "Please copy a chain environment file to .env first"; \
 		exit 1; \
 	fi
-	docker compose -f cosmos.yml -f docker-compose.dev.yml up -d
+	HOST_UID=$$(id -u) HOST_GID=$$(id -g) docker compose -f cosmos.yml -f docker-compose.dev.yml up -d
 
 dev-tools: ## Start with development tools (includes utilities like curl, jq, htop)
 	@echo "🔧 Starting with development tools..."
-	docker compose -f cosmos.yml -f docker-compose.dev.yml --profile dev-tools up -d
+	HOST_UID=$$(id -u) HOST_GID=$$(id -g) docker compose -f cosmos.yml -f docker-compose.dev.yml --profile dev-tools up -d
 	@echo ""
 	@echo "💡 Access development tools with:"
 	@echo "   docker compose exec dev-tools bash"

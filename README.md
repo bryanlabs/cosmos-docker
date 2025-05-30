@@ -260,7 +260,7 @@ For production deployments or when using a dedicated disk, the default path patt
 ```bash
 # Example: Mount a separate disk to /mnt/data
 sudo mkdir -p /mnt/data/blockchain
-sudo chown 10001:10001 /mnt/data/blockchain
+sudo chown $(id -u):$(id -g) /mnt/data/blockchain
 ```
 
 2. **The DATA_DIR is automatically set to:**
@@ -284,7 +284,7 @@ echo '/dev/sdb /mnt/data ext4 defaults 0 2' | sudo tee -a /etc/fstab
 
 # 2. Prepare cosmos directory (will be created per chain automatically)
 sudo mkdir -p /mnt/data/blockchain
-sudo chown 10001:10001 /mnt/data/blockchain
+sudo chown $(id -u):$(id -g) /mnt/data/blockchain
 
 # 3. Copy chain configuration (DATA_DIR already configured correctly)
 cp cosmoshub-4.env .env
@@ -361,7 +361,7 @@ sudo usermod -aG docker $USER
 # Log out and back in
 
 # Fix data directory permissions (if using custom DATA_DIR)
-sudo chown -R 10001:10001 /your/data/path
+sudo chown -R $(id -u):$(id -g) /your/data/path
 ```
 
 **Storage issues:**

@@ -41,6 +41,8 @@ services:
       args:
         - NODE_VERSION=${NODE_VERSION}
         - USER=${DAEMON_NAME:-cosmos}
+        - UID=${HOST_UID:-1000}
+        - GID=${HOST_GID:-1000}
     image: ${DAEMON_NAME:-cosmos}:local
     pull_policy: never
     user: ${DAEMON_NAME:-cosmos}

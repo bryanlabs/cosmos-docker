@@ -5,7 +5,8 @@ FROM ghcr.io/tomwright/dasel:2-alpine AS dasel
 FROM alpine:3.18
 
 ARG USER=cosmos
-ARG UID=10001
+ARG UID=1000
+ARG GID=1000
 ARG NODE_VERSION
 
 ENV VERSION_NUMBER=${NODE_VERSION#v}
@@ -13,11 +14,13 @@ ENV VERSION_NUMBER=${NODE_VERSION#v}
 RUN apk update && apk add --no-cache ca-certificates tzdata bash curl wget jq tar pv aria2 lz4
 
 # See https://stackoverflow.com/a/55757473/12429735RUN
-RUN adduser \
+RUN addgroup -g "${GID}" "${USER}" && \
+    adduser \
     --disabled-password \
     --gecos "" \
     --shell "/sbin/nologin" \
     --uid "${UID}" \
+    --ingroup "${USER}" \
     "${USER}"
 
 VOLUME /${USER}
