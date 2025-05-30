@@ -145,9 +145,11 @@ clean: ## Remove all containers, volumes, and data
 	docker system prune -af --volumes
 	@if [ -f .env ] && grep -q "^DATA_DIR=" .env; then \
 		DATA_PATH=$$(grep "^DATA_DIR=" .env | cut -d'=' -f2); \
-		echo "⚠️  Custom data directory detected: $$DATA_PATH"; \
+		NETWORK_NAME=$$(grep "^NETWORK=" .env | cut -d'=' -f2); \
+		RESOLVED_DATA_PATH=$$(echo "$$DATA_PATH" | sed "s/\$${NETWORK}/$$NETWORK_NAME/g"); \
+		echo "⚠️  Custom data directory detected: $$RESOLVED_DATA_PATH"; \
 		echo "   Data will NOT be automatically removed for safety."; \
-		echo "   To manually remove: sudo rm -rf $$DATA_PATH"; \
+		echo "   To manually remove: sudo rm -rf $$RESOLVED_DATA_PATH"; \
 	fi
 	@echo "✅ Cleanup complete!"
 
