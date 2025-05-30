@@ -73,22 +73,69 @@ if [[ ! -f ${DAEMON_HOME}/.initialized ]]; then
   # P2P Configuration
   if [ -n "${SEEDS:-}" ]; then
     echo "Setting seeds: $SEEDS"
-    dasel put -f "$CONFIG_FILE" -v "$SEEDS" 'p2p.seeds'
+    dasel put -t string -f "$CONFIG_FILE" -v "$SEEDS" 'p2p.seeds'
   fi
   
   if [ -n "${PERSISTENT_PEERS:-}" ]; then
     echo "Setting persistent peers: $PERSISTENT_PEERS"
-    dasel put -f "$CONFIG_FILE" -v "$PERSISTENT_PEERS" 'p2p.persistent_peers'
+    dasel put -t string -f "$CONFIG_FILE" -v "$PERSISTENT_PEERS" 'p2p.persistent_peers'
   fi
   
-  if [ -n "${EXTERNAL_ADDRESS:-}" ] && [ "$EXTERNAL_ADDRESS" != "auto" ]; then
-    echo "Setting external address: $EXTERNAL_ADDRESS"
-    dasel put -f "$CONFIG_FILE" -v "$EXTERNAL_ADDRESS" 'p2p.external_address'
+  # Ensure P2P_PORT has a valid default value BEFORE using it
+  P2P_PORT=${P2P_PORT:-26656}
+  echo "Using P2P_PORT: $P2P_PORT"
+  
+  # Validate that P2P_PORT is a valid number
+  if ! [[ "$P2P_PORT" =~ ^[0-9]+$ ]]; then
+    echo "ERROR: P2P_PORT must be a valid port number, got: $P2P_PORT"
+    exit 1
+  fi
+  
+  if [ -n "${EXTERNAL_ADDRESS:-}" ]; then
+    if [ "$EXTERNAL_ADDRESS" = "auto" ]; then
+      echo "Auto-detecting external IP address..."
+      DETECTED_IP=$(curl -s --connect-timeout 10 ifconfig.me -4 || echo "")
+      if [ -n "$DETECTED_IP" ]; then
+        EXTERNAL_ADDRESS="${DETECTED_IP}:${P2P_PORT}"
+        echo "Detected external IP: $DETECTED_IP, using external address: $EXTERNAL_ADDRESS"
+      else
+        echo "WARNING: Failed to auto-detect external IP. External address will not be configured."
+        EXTERNAL_ADDRESS=""
+      fi
+    fi
+    
+    if [ -n "$EXTERNAL_ADDRESS" ]; then
+      echo "Setting external address: $EXTERNAL_ADDRESS"
+      if ! dasel put -t string -f "$CONFIG_FILE" -v "$EXTERNAL_ADDRESS" 'p2p.external_address'; then
+        echo "ERROR: Failed to set p2p.external_address in config file"
+        exit 1
+      fi
+    fi
   fi
   
   # Port Configuration
-  dasel put -f "$CONFIG_FILE" -v ":${P2P_PORT:-26656}" 'p2p.laddr'
-  dasel put -f "$CONFIG_FILE" -v "tcp://0.0.0.0:${RPC_PORT:-26657}" 'rpc.laddr'
+  if ! dasel put -f "$CONFIG_FILE" -v "tcp://0.0.0.0:${RPC_PORT:-26657}" 'rpc.laddr'; then
+    echo "ERROR: Failed to set rpc.laddr in config file"
+    exit 1
+  fi
+
+  # Log the full p2p.laddr value being set
+  echo "Setting p2p.laddr to: tcp://0.0.0.0:$P2P_PORT"
+
+  # Update p2p.laddr configuration with explicit type to ensure proper formatting
+  if ! dasel put -t string -f "$CONFIG_FILE" -v "tcp://0.0.0.0:$P2P_PORT" 'p2p.laddr'; then
+    echo "ERROR: Failed to set p2p.laddr in config file"
+    exit 1
+  fi
+  
+  # Verify the configuration was written correctly
+  ACTUAL_P2P_LADDR=$(dasel select -f "$CONFIG_FILE" 'p2p.laddr' || echo "FAILED_TO_READ")
+  echo "Verified p2p.laddr set to: $ACTUAL_P2P_LADDR"
+  
+  if [ -n "${EXTERNAL_ADDRESS:-}" ] && [ "$EXTERNAL_ADDRESS" != "" ]; then
+    ACTUAL_EXTERNAL_ADDR=$(dasel select -f "$CONFIG_FILE" 'p2p.external_address' || echo "FAILED_TO_READ")
+    echo "Verified p2p.external_address set to: $ACTUAL_EXTERNAL_ADDR"
+  fi
   
   # Advanced P2P Settings
   dasel put -f "$CONFIG_FILE" -v "${MAX_INBOUND_PEERS:-40}" 'p2p.max_num_inbound_peers'
@@ -190,4 +237,7 @@ CMD="${DAEMON_HOME}/bin/${DAEMON_NAME} start --home ${DAEMON_HOME}"
 if [ -n "${EXTRA_FLAGS:-}" ]; then
   CMD="$CMD $EXTRA_FLAGS"
 fi
+
+# Execute the command
+exec $CMD
 
