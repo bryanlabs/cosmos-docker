@@ -11,7 +11,7 @@ start: ## Start Cosmos node with complete monitoring
 	@if [ ! -f .env ]; then \
 		echo "❌ .env file not found!"; \
 		echo "Please copy a chain environment file to .env first:"; \
-		echo "  cp thorchain-1.env .env"; \
+		echo "  cp <chain>.env .env  # e.g., cp cosmoshub-4.env .env"; \
 		echo "  cp cosmoshub-4.env .env"; \
 		echo "  cp osmosis-1.env .env"; \
 		exit 1; \
@@ -160,7 +160,7 @@ update: ## Update to latest version (set NODE_VERSION in .env first)
 	docker compose up -d
 
 setup-data-dir: ## Setup custom data directory (requires DATA_DIR in .env)
-	@if [ ! -f .env ]; then echo "❌ .env file not found. Run 'cp thorchain-1.env .env' first."; exit 1; fi
+	@if [ ! -f .env ]; then echo "❌ .env file not found. Copy a chain-specific .env file first (e.g., cp cosmoshub-4.env .env)"; exit 1; fi
 	@if ! grep -q "^DATA_DIR=" .env; then echo "❌ DATA_DIR not set in .env file. Please configure DATA_DIR=/your/path"; exit 1; fi
 	@DATA_PATH=$$(grep "^DATA_DIR=" .env | cut -d'=' -f2); \
 	echo "🗂️  Setting up data directory: $$DATA_PATH"; \

@@ -33,7 +33,7 @@ This guide is for developers who want to contribute to the Cosmos Docker project
 3. **Start development environment:**
    ```bash
    # Use development override configuration
-   docker compose -f thorchain.yml -f docker-compose.dev.yml up -d
+   docker compose -f cosmos.yml -f docker-compose.dev.yml up -d
    ```
 
 ## Development Configuration
@@ -50,25 +50,27 @@ The `docker-compose.dev.yml` file provides development-specific configuration:
 ### Environment Files
 
 - **`.env.example`**: Template for minimal configuration
-- **`thorchain-1.env`**: Production-ready configuration for mainnet
+- **Chain-specific `.env` files**: Production-ready configurations for different networks (e.g., `cosmoshub-4.env`, `osmosis-1.env`, `thorchain-1.env`)
 - **`.env.dev`**: Development-specific environment variables (create as needed)
 
 ## Project Structure
 
 ```
-thorchain-docker/
+cosmos-docker/
 ├── .github/
 │   └── workflows/          # GitHub Actions CI/CD workflows
 │       ├── lint.yml        # YAML linting
 │       ├── docker-test.yml # Docker configuration testing
 │       └── security.yml    # Security scanning
-├── thorchain.yml           # Main Docker Compose configuration
+├── cosmos.yml              # Main Docker Compose configuration
 ├── docker-compose.dev.yml  # Development overrides
 ├── Makefile                # Build and deployment automation
 ├── monitor.sh              # Node monitoring script
 ├── validate.sh             # Setup validation script
 ├── .env.example            # Minimal environment template
-├── thorchain-1.env         # Complete mainnet configuration
+├── cosmoshub-4.env         # Example Cosmos Hub mainnet configuration
+├── osmosis-1.env           # Example Osmosis mainnet configuration
+├── thorchain-1.env         # Example THORChain mainnet configuration
 ├── README.md               # Main documentation
 ├── CONTRIBUTING.md         # Contribution guidelines
 ├── DEVELOPMENT.md          # This file
@@ -80,10 +82,10 @@ thorchain-docker/
 
 ### 1. Docker Compose Configuration
 
-When modifying `thorchain.yml`:
+When modifying `cosmos.yml`:
 
-- **Test syntax**: `docker compose -f thorchain.yml config --quiet`
-- **Validate with development override**: `docker compose -f thorchain.yml -f docker-compose.dev.yml config --quiet`
+- **Test syntax**: `docker compose -f cosmos.yml config --quiet`
+- **Validate with development override**: `docker compose -f cosmos.yml -f docker-compose.dev.yml config --quiet`
 - **Use YAML anchors** for repeated configuration (see existing examples)
 - **Include health checks** for new services
 - **Use environment variable substitution** for configurable values
@@ -92,7 +94,7 @@ When modifying `thorchain.yml`:
 
 When modifying environment files:
 
-- **Maintain compatibility** between `.env.example` (minimal) and `thorchain-1.env` (complete)
+- **Maintain compatibility** between `.env.example` (minimal) and chain-specific `.env` files (complete)
 - **Add comments** explaining new variables
 - **Use sections** with clear headers
 - **Provide sensible defaults** in `.env.example`
@@ -129,10 +131,10 @@ When modifying shell scripts:
 2. **Test specific configurations:**
    ```bash
    # Test main configuration
-   docker compose -f thorchain.yml config --quiet
+   docker compose -f cosmos.yml config --quiet
    
    # Test with development overrides
-   docker compose -f thorchain.yml -f docker-compose.dev.yml config --quiet
+   docker compose -f cosmos.yml -f docker-compose.dev.yml config --quiet
    
    # Test Makefile targets
    make --dry-run help up down clean
@@ -142,7 +144,7 @@ When modifying shell scripts:
    ```bash
    # Check environment file syntax
    set -a && source .env.example && set +a
-   set -a && source thorchain-1.env && set +a
+   set -a && source cosmoshub-4.env && set +a
    ```
 
 ### CI/CD Testing
@@ -181,7 +183,7 @@ The project includes GitHub Actions workflows that run automatically:
 
 ### Adding a New Service
 
-1. **Define service in `thorchain.yml`:**
+1. **Define service in `cosmos.yml`:**
    ```yaml
    new-service:
      image: service:latest
@@ -203,7 +205,7 @@ The project includes GitHub Actions workflows that run automatically:
    SETTING=default_value
    ```
 
-3. **Add complete configuration to `thorchain-1.env`:**
+3. **Add complete configuration to chain-specific `.env` file:**
    ```bash
    # ================================
    # New Service Configuration
@@ -240,17 +242,17 @@ new-target: ## Description of what this target does
    ```bash
    make logs
    # or
-   docker compose -f thorchain.yml logs -f
+   docker compose -f cosmos.yml logs -f
    ```
 
 2. **Inspect configuration:**
    ```bash
-   docker compose -f thorchain.yml config
+   docker compose -f cosmos.yml config
    ```
 
 3. **Test individual services:**
    ```bash
-   docker compose -f thorchain.yml up service-name
+   docker compose -f cosmos.yml up service-name
    ```
 
 4. **Validate environment:**

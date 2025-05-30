@@ -26,7 +26,7 @@ Brief description of what this PR does.
 - [ ] Tested Docker Compose configuration with `docker compose config`
 - [ ] Tested Makefile targets with `make --dry-run`
 - [ ] Verified environment file syntax
-- [ ] Tested with both minimal (`.env.example`) and complete (`thorchain-1.env`) configurations
+- [ ] Tested with both minimal (`.env.example`) and complete (specific chain `.env`) configurations
 - [ ] Manual testing performed (describe below)
 
 ### Manual Testing Details

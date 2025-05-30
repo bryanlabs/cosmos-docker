@@ -1,5 +1,5 @@
 name: Bug Report
-description: Report a bug or issue with THORChain Docker
+description: Report a bug or issue with Cosmos Docker
 title: "[BUG] "
 labels: ["bug"]
 body:
@@ -55,7 +55,7 @@ body:
         - Docker version: [e.g., 24.0.6]
         - Docker Compose version: [e.g., 2.21.0]
         - Make version: [e.g., 4.3]
-        - Configuration used: [e.g., .env.example, thorchain-1.env, custom]
+        - Configuration used: [e.g., .env.example, cosmoshub-4.env, thorchain-1.env, custom]
     validations:
       required: true
 

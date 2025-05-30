@@ -19,12 +19,12 @@ jobs:
     - name: Verify Docker Compose files syntax
       run: |
         # Test main docker-compose file
-        docker-compose -f thorchain.yml config --quiet
-        echo "✅ thorchain.yml syntax is valid"
+        docker-compose -f cosmos.yml config --quiet
+        echo "✅ cosmos.yml syntax is valid"
         
         # Test development override file if it exists
         if [ -f docker-compose.dev.yml ]; then
-          docker-compose -f thorchain.yml -f docker-compose.dev.yml config --quiet
+          docker-compose -f cosmos.yml -f docker-compose.dev.yml config --quiet
           echo "✅ docker-compose.dev.yml syntax is valid"
         fi
     
@@ -61,7 +61,7 @@ jobs:
         echo "DATA_DIR=test-data" > .env
         
         # Try to pull images and validate service definitions
-        docker-compose -f thorchain.yml pull --quiet || true
+        docker-compose -f cosmos.yml pull --quiet || true
         echo "✅ Docker Compose services are properly defined"
         
         # Cleanup

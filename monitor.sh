@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# THORChain Node Monitoring Script
+# Cosmos Chain Node Monitoring Script
 
 set -e
 
@@ -8,7 +8,7 @@ set -e
 RPC_URL="http://localhost:27147"
 TIMEOUT=10
 
-echo "=== THORChain Node Status ==="
+echo "=== Cosmos Node Status ==="
 echo "Timestamp: $(date)"
 echo "RPC URL: $RPC_URL"
 echo ""
@@ -41,7 +41,7 @@ echo "🔍 Checking node connectivity..."
 if ! curl -s --connect-timeout $TIMEOUT "$RPC_URL/status" > /dev/null; then
     echo "❌ Node is not responding on $RPC_URL"
     echo "   • Check if the node is running: docker compose ps"
-    echo "   • Check logs: docker compose logs thorchain"
+    echo "   • Check logs: docker compose logs cosmos"
     echo "   • Verify port configuration in .env file"
     exit 1
 fi
