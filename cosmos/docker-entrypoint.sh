@@ -30,7 +30,14 @@ if [[ ! -f ${DAEMON_HOME}/.initialized ]]; then
   echo "Downloading genesis file..."
   if [ -n "${GENESIS_URL:-}" ]; then
     echo "Using configured genesis URL: $GENESIS_URL"
-    curl "$GENESIS_URL" -o ${DAEMON_HOME}/config/genesis.json
+    echo "Downloading to: ${DAEMON_HOME}/config/genesis.json"
+    if curl -f "$GENESIS_URL" -o ${DAEMON_HOME}/config/genesis.json; then
+      echo "Genesis file downloaded successfully"
+      echo "Genesis file size: $(ls -lh ${DAEMON_HOME}/config/genesis.json | awk '{print $5}')"
+    else
+      echo "❌ Failed to download genesis file from $GENESIS_URL"
+      exit 1
+    fi
   else
     echo "No genesis URL configured, skipping genesis download..."
   fi
@@ -224,6 +231,30 @@ if [[ ! -f ${DAEMON_HOME}/.initialized ]]; then
   dasel put -f "$APP_CONFIG_FILE" -v "true" 'grpc-web.enable'
   dasel put -f "$APP_CONFIG_FILE" -v "0.0.0.0:${GRPC_WEB_PORT:-9091}" 'grpc-web.address'
   
+  # Minimum gas price configuration in app.toml
+  if [ -n "${MIN_GAS_PRICE:-}" ]; then
+    echo "Setting minimum gas price in app.toml: $MIN_GAS_PRICE"
+    dasel put -f "$APP_CONFIG_FILE" -v "$MIN_GAS_PRICE" 'minimum-gas-prices' || true
+  fi
+  
+  # Pruning configuration in app.toml
+  if [ -n "${PRUNING_STRATEGY:-}" ]; then
+    echo "Setting pruning strategy in app.toml: $PRUNING_STRATEGY"
+    dasel put -f "$APP_CONFIG_FILE" -v "$PRUNING_STRATEGY" 'pruning' || true
+    
+    if [ "$PRUNING_STRATEGY" = "custom" ]; then
+      if [ -n "${PRUNING_KEEP_RECENT:-}" ]; then
+        echo "Setting pruning-keep-recent in app.toml: $PRUNING_KEEP_RECENT"
+        dasel put -f "$APP_CONFIG_FILE" -v "$PRUNING_KEEP_RECENT" 'pruning-keep-recent' || true
+      fi
+      
+      if [ -n "${PRUNING_INTERVAL:-}" ]; then
+        echo "Setting pruning-interval in app.toml: $PRUNING_INTERVAL"
+        dasel put -f "$APP_CONFIG_FILE" -v "$PRUNING_INTERVAL" 'pruning-interval' || true
+      fi
+    fi
+  fi
+  
   touch ${DAEMON_HOME}/.initialized
   echo "Initialization complete!"
 fi
@@ -239,6 +270,22 @@ if [ -z "${MONIKER:-}" ]; then
   exit 1
 fi
 
+# Validate that genesis file exists and is readable
+GENESIS_FILE="${DAEMON_HOME}/config/genesis.json"
+if [ ! -f "$GENESIS_FILE" ]; then
+  echo "ERROR: Genesis file not found at $GENESIS_FILE"
+  echo "Available files in config directory:"
+  ls -la ${DAEMON_HOME}/config/ || echo "Config directory not accessible"
+  exit 1
+fi
+
+if [ ! -r "$GENESIS_FILE" ]; then
+  echo "ERROR: Genesis file $GENESIS_FILE is not readable"
+  exit 1
+fi
+
+echo "✅ Genesis file validation passed: $GENESIS_FILE"
+
 # Start the node
 echo "Starting ${DAEMON_NAME} node..."
 echo "Network: $NETWORK"
@@ -246,11 +293,41 @@ echo "Moniker: $MONIKER"
 echo "Home: ${DAEMON_HOME}"
 echo "Version: $NODE_VERSION"
 
-# Build the command with extra flags if provided
+# Build the command with configured flags
 CMD="${DAEMON_HOME}/bin/${DAEMON_NAME} start --home ${DAEMON_HOME}"
+
+# Add minimum gas price if configured
+if [ -n "${MIN_GAS_PRICE:-}" ]; then
+  echo "Setting minimum gas price: $MIN_GAS_PRICE"
+  CMD="$CMD --minimum-gas-prices=$MIN_GAS_PRICE"
+fi
+
+# Add pruning configuration if specified
+if [ -n "${PRUNING_STRATEGY:-}" ]; then
+  echo "Setting pruning strategy: $PRUNING_STRATEGY"
+  CMD="$CMD --pruning=$PRUNING_STRATEGY"
+  
+  # Add additional pruning parameters for custom strategy
+  if [ "$PRUNING_STRATEGY" = "custom" ]; then
+    if [ -n "${PRUNING_KEEP_RECENT:-}" ]; then
+      echo "Setting pruning keep recent: $PRUNING_KEEP_RECENT"
+      CMD="$CMD --pruning-keep-recent=$PRUNING_KEEP_RECENT"
+    fi
+    
+    if [ -n "${PRUNING_INTERVAL:-}" ]; then
+      echo "Setting pruning interval: $PRUNING_INTERVAL"
+      CMD="$CMD --pruning-interval=$PRUNING_INTERVAL"
+    fi
+  fi
+fi
+
+# Add any extra flags if provided
 if [ -n "${EXTRA_FLAGS:-}" ]; then
+  echo "Adding extra flags: $EXTRA_FLAGS"
   CMD="$CMD $EXTRA_FLAGS"
 fi
+
+echo "Executing command: $CMD"
 
 # Execute the command
 exec $CMD

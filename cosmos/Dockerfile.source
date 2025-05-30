@@ -10,7 +10,7 @@ ARG NODE_VERSION
 
 ENV VERSION_NUMBER=${NODE_VERSION#v}
 
-RUN apk update && apk add --no-cache ca-certificates tzdata bash curl wget jq tar pv aria2
+RUN apk update && apk add --no-cache ca-certificates tzdata bash curl wget jq tar pv aria2 lz4
 
 # See https://stackoverflow.com/a/55757473/12429735RUN
 RUN adduser \
