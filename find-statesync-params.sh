@@ -128,7 +128,6 @@ find_best_height() {
         return 1
     fi
 }
-}
 
 # Function to find earliest available block on server
 find_earliest_block() {
