@@ -15,6 +15,10 @@ start: ## Start Cosmos node with complete monitoring
 		echo "  cp osmosis-1.env .env"; \
 		exit 1; \
 	fi
+	@if grep -q "^DATA_DIR=" .env && [ "$$(grep "^DATA_DIR=" .env | cut -d'=' -f2)" != "" ]; then \
+		echo "🗂️  Custom DATA_DIR detected, setting up directory..."; \
+		$(MAKE) setup-data-dir; \
+	fi
 	@NETWORK_NAME=$$(grep "^NETWORK=" .env | cut -d'=' -f2 | head -1); \
 	NODE_VERSION=$$(grep "^NODE_VERSION=" .env | cut -d'=' -f2 | head -1); \
 	DAEMON_NAME=$$(grep "^DAEMON_NAME=" .env | cut -d'=' -f2 | head -1); \
@@ -190,10 +194,12 @@ setup-data-dir: ## Setup custom data directory (requires DATA_DIR in .env)
 	@if [ ! -f .env ]; then echo "❌ .env file not found. Copy a chain-specific .env file first (e.g., cp cosmoshub-4.env .env)"; exit 1; fi
 	@if ! grep -q "^DATA_DIR=" .env; then echo "❌ DATA_DIR not set in .env file. Please configure DATA_DIR=/your/path"; exit 1; fi
 	@DATA_PATH=$$(grep "^DATA_DIR=" .env | cut -d'=' -f2); \
-	echo "🗂️  Setting up data directory: $$DATA_PATH"; \
-	sudo mkdir -p "$$DATA_PATH" && \
-	sudo chown $$(id -u):$$(id -g) "$$DATA_PATH" && \
-	echo "✅ Data directory $$DATA_PATH is ready!" || \
+	NETWORK_NAME=$$(grep "^NETWORK=" .env | cut -d'=' -f2 | head -1); \
+	RESOLVED_DATA_PATH=$$(echo "$$DATA_PATH" | sed "s/\$${NETWORK}/$$NETWORK_NAME/g"); \
+	echo "🗂️  Setting up data directory: $$RESOLVED_DATA_PATH"; \
+	sudo mkdir -p "$$RESOLVED_DATA_PATH" && \
+	sudo chown $$(id -u):$$(id -g) "$$RESOLVED_DATA_PATH" && \
+	echo "✅ Data directory $$RESOLVED_DATA_PATH is ready!" || \
 	echo "❌ Failed to setup data directory. Check permissions and path."
 
 ## Development targets
