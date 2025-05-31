@@ -1,5 +1,4 @@
-# Get dasel for config management
-FROM ghcr.io/tomwright/dasel:2-alpine AS dasel
+# No longer needed - using yq directly from Alpine repos
 
 # Base image for the final stage
 FROM alpine:3.18
@@ -11,7 +10,7 @@ ARG NODE_VERSION
 
 ENV VERSION_NUMBER=${NODE_VERSION#v}
 
-RUN apk update && apk add --no-cache ca-certificates tzdata bash curl wget jq tar pv aria2 lz4
+RUN apk update && apk add --no-cache ca-certificates tzdata bash curl wget jq tar pv aria2 lz4 yq
 
 # See https://stackoverflow.com/a/55757473/12429735RUN
 RUN addgroup -g "${GID}" "${USER}" && \
@@ -28,8 +27,7 @@ VOLUME /${USER}
 RUN mkdir -p /${USER}/config
 RUN mkdir -p /${USER}/data
 
-# Copy dasel for config management
-COPY --from=dasel --chown=${USER}:${USER} /usr/local/bin/dasel /usr/local/bin/
+# yq is now installed via apk package manager
 
 # Set correct permissions
 RUN chown -R ${USER}:${USER} /${USER} && chmod -R 700 /${USER}

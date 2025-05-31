@@ -90,12 +90,12 @@ if [[ ! -f ${DAEMON_HOME}/.initialized ]]; then
   # P2P Configuration
   if [ -n "${SEEDS:-}" ]; then
     echo "Setting seeds: $SEEDS"
-    dasel put -t string -f "$CONFIG_FILE" -v "$SEEDS" 'p2p.seeds'
+    yq -i ".p2p.seeds = \"$SEEDS\"" "$CONFIG_FILE"
   fi
   
   if [ -n "${PERSISTENT_PEERS:-}" ]; then
     echo "Setting persistent peers: $PERSISTENT_PEERS"
-    dasel put -t string -f "$CONFIG_FILE" -v "$PERSISTENT_PEERS" 'p2p.persistent_peers'
+    yq -i ".p2p.persistent_peers = \"$PERSISTENT_PEERS\"" "$CONFIG_FILE"
   fi
   
   # Ensure P2P_PORT has a valid default value BEFORE using it
@@ -123,7 +123,7 @@ if [[ ! -f ${DAEMON_HOME}/.initialized ]]; then
     
     if [ -n "$EXTERNAL_ADDRESS" ]; then
       echo "Setting external address: $EXTERNAL_ADDRESS"
-      if ! dasel put -t string -f "$CONFIG_FILE" -v "$EXTERNAL_ADDRESS" 'p2p.external_address'; then
+      if ! yq -i ".p2p.external_address = \"$EXTERNAL_ADDRESS\"" "$CONFIG_FILE"; then
         echo "ERROR: Failed to set p2p.external_address in config file"
         exit 1
       fi
@@ -131,7 +131,7 @@ if [[ ! -f ${DAEMON_HOME}/.initialized ]]; then
   fi
   
   # Port Configuration
-  if ! dasel put -t string -f "$CONFIG_FILE" -v "tcp://0.0.0.0:${RPC_PORT:-26657}" 'rpc.laddr'; then
+  if ! yq -i ".rpc.laddr = \"tcp://0.0.0.0:${RPC_PORT:-26657}\"" "$CONFIG_FILE"; then
     echo "ERROR: Failed to set rpc.laddr in config file"
     exit 1
   fi
@@ -141,116 +141,114 @@ if [[ ! -f ${DAEMON_HOME}/.initialized ]]; then
 
   # Update p2p.laddr configuration with explicit type to ensure proper formatting
   P2P_LADDR_VALUE="tcp://0.0.0.0:$P2P_PORT"
-  if ! dasel put -t string -f "$CONFIG_FILE" -v "$P2P_LADDR_VALUE" 'p2p.laddr'; then
+  if ! yq -i ".p2p.laddr = \"$P2P_LADDR_VALUE\"" "$CONFIG_FILE"; then
     echo "ERROR: Failed to set p2p.laddr in config file"
     exit 1
   fi
   
   # Verify the configuration was written correctly
-  # Try current dasel syntax first, fallback to alternative if needed
-  ACTUAL_P2P_LADDR=$(dasel -f "$CONFIG_FILE" 'p2p.laddr' 2>/dev/null || echo "FAILED_TO_READ")
-  # Alternative syntax: ACTUAL_P2P_LADDR=$(dasel select -f "$CONFIG_FILE" 'p2p.laddr' 2>/dev/null || echo "FAILED_TO_READ")
+  # Try current yq syntax first, fallback to alternative if needed
+  ACTUAL_P2P_LADDR=$(yq ".p2p.laddr" "$CONFIG_FILE" 2>/dev/null || echo "FAILED_TO_READ")
   echo "Verified p2p.laddr set to: $ACTUAL_P2P_LADDR"
   
   if [ -n "${EXTERNAL_ADDRESS:-}" ] && [ "$EXTERNAL_ADDRESS" != "" ]; then
-    ACTUAL_EXTERNAL_ADDR=$(dasel -f "$CONFIG_FILE" 'p2p.external_address' 2>/dev/null || echo "FAILED_TO_READ")
-    # Alternative syntax: ACTUAL_EXTERNAL_ADDR=$(dasel select -f "$CONFIG_FILE" 'p2p.external_address' 2>/dev/null || echo "FAILED_TO_READ")
+    ACTUAL_EXTERNAL_ADDR=$(yq ".p2p.external_address" "$CONFIG_FILE" 2>/dev/null || echo "FAILED_TO_READ")
     echo "Verified p2p.external_address set to: $ACTUAL_EXTERNAL_ADDR"
   fi
   
   # Advanced P2P Settings
-  dasel put -f "$CONFIG_FILE" -v "${MAX_INBOUND_PEERS:-40}" 'p2p.max_num_inbound_peers'
-  dasel put -f "$CONFIG_FILE" -v "${MAX_OUTBOUND_PEERS:-10}" 'p2p.max_num_outbound_peers'
-  dasel put -f "$CONFIG_FILE" -v "${P2P_PEX:-true}" 'p2p.pex'
-  dasel put -f "$CONFIG_FILE" -v "${P2P_ADDR_BOOK_STRICT:-false}" 'p2p.addr_book_strict'
-  dasel put -f "$CONFIG_FILE" -v "${P2P_FLUSH_THROTTLE_TIMEOUT:-100ms}" 'p2p.flush_throttle_timeout'
-  dasel put -f "$CONFIG_FILE" -v "${P2P_DIAL_TIMEOUT:-3s}" 'p2p.dial_timeout'
-  dasel put -f "$CONFIG_FILE" -v "${P2P_HANDSHAKE_TIMEOUT:-20s}" 'p2p.handshake_timeout'
-  dasel put -f "$CONFIG_FILE" -v "${P2P_ALLOW_DUPLICATE_IP:-true}" 'p2p.allow_duplicate_ip'
+  yq -i ".p2p.max_num_inbound_peers = ${MAX_INBOUND_PEERS:-40}" "$CONFIG_FILE"
+  yq -i ".p2p.max_num_outbound_peers = ${MAX_OUTBOUND_PEERS:-10}" "$CONFIG_FILE"
+  yq -i ".p2p.pex = ${P2P_PEX:-true}" "$CONFIG_FILE"
+  yq -i ".p2p.addr_book_strict = ${P2P_ADDR_BOOK_STRICT:-false}" "$CONFIG_FILE"
+  yq -i ".p2p.flush_throttle_timeout = \"${P2P_FLUSH_THROTTLE_TIMEOUT:-100ms}\"" "$CONFIG_FILE"
+  yq -i ".p2p.dial_timeout = \"${P2P_DIAL_TIMEOUT:-3s}\"" "$CONFIG_FILE"
+  yq -i ".p2p.handshake_timeout = \"${P2P_HANDSHAKE_TIMEOUT:-20s}\"" "$CONFIG_FILE"
+  yq -i ".p2p.allow_duplicate_ip = ${P2P_ALLOW_DUPLICATE_IP:-true}" "$CONFIG_FILE"
   
   if [ -n "${PRIVATE_PEER_IDS:-}" ]; then
-    dasel put -f "$CONFIG_FILE" -v "$PRIVATE_PEER_IDS" 'p2p.private_peer_ids'
+    yq -i ".p2p.private_peer_ids = \"$PRIVATE_PEER_IDS\"" "$CONFIG_FILE"
   fi
   
   # RPC Configuration
-  dasel put -f "$CONFIG_FILE" -v "${RPC_CORS_ALLOWED_ORIGINS:-[\"*\"]}" 'rpc.cors_allowed_origins'
-  dasel put -f "$CONFIG_FILE" -v "${RPC_MAX_OPEN_CONNECTIONS:-2000}" 'rpc.max_open_connections'
-  dasel put -f "$CONFIG_FILE" -v "${RPC_GRPC_MAX_OPEN_CONNECTIONS:-2000}" 'rpc.grpc_max_open_connections'
+  yq -i ".rpc.cors_allowed_origins = ${RPC_CORS_ALLOWED_ORIGINS:-[\"*\"]}" "$CONFIG_FILE"
+  yq -i ".rpc.max_open_connections = ${RPC_MAX_OPEN_CONNECTIONS:-2000}" "$CONFIG_FILE"
+  yq -i ".rpc.grpc_max_open_connections = ${RPC_GRPC_MAX_OPEN_CONNECTIONS:-2000}" "$CONFIG_FILE"
   
   # State Sync Configuration
-  dasel put -f "$CONFIG_FILE" -v "${STATESYNC_ENABLE:-false}" 'statesync.enable'
+  yq -i ".statesync.enable = ${STATESYNC_ENABLE:-false}" "$CONFIG_FILE"
   if [ -n "${STATESYNC_RPC_SERVERS:-}" ]; then
-    dasel put -f "$CONFIG_FILE" -v "$STATESYNC_RPC_SERVERS" 'statesync.rpc_servers'
+    yq -i ".statesync.rpc_servers = \"$STATESYNC_RPC_SERVERS\"" "$CONFIG_FILE"
   fi
-  dasel put -f "$CONFIG_FILE" -v "${STATESYNC_TRUST_PERIOD:-360h0m0s}" 'statesync.trust_period'
+  yq -i ".statesync.trust_period = \"${STATESYNC_TRUST_PERIOD:-360h0m0s}\"" "$CONFIG_FILE"
   
   # Consensus Configuration
-  dasel put -f "$CONFIG_FILE" -v "${CONSENSUS_TIMEOUT_COMMIT:-5s}" 'consensus.timeout_commit'
-  dasel put -f "$CONFIG_FILE" -v "${CONSENSUS_CREATE_EMPTY_BLOCKS:-true}" 'consensus.create_empty_blocks'
-  dasel put -f "$CONFIG_FILE" -v "${CONSENSUS_TIMEOUT_PROPOSE:-3s}" 'consensus.timeout_propose'
-  dasel put -f "$CONFIG_FILE" -v "${CONSENSUS_TIMEOUT_PROPOSE_DELTA:-500ms}" 'consensus.timeout_propose_delta'
-  dasel put -f "$CONFIG_FILE" -v "${CONSENSUS_TIMEOUT_PREVOTE:-1s}" 'consensus.timeout_prevote'
-  dasel put -f "$CONFIG_FILE" -v "${CONSENSUS_TIMEOUT_PREVOTE_DELTA:-500ms}" 'consensus.timeout_prevote_delta'
-  dasel put -f "$CONFIG_FILE" -v "${CONSENSUS_TIMEOUT_PRECOMMIT:-1s}" 'consensus.timeout_precommit'
-  dasel put -f "$CONFIG_FILE" -v "${CONSENSUS_TIMEOUT_PRECOMMIT_DELTA:-500ms}" 'consensus.timeout_precommit_delta'
+  yq -i ".consensus.timeout_commit = \"${CONSENSUS_TIMEOUT_COMMIT:-5s}\"" "$CONFIG_FILE"
+  yq -i ".consensus.create_empty_blocks = ${CONSENSUS_CREATE_EMPTY_BLOCKS:-true}" "$CONFIG_FILE"
+  yq -i ".consensus.timeout_propose = \"${CONSENSUS_TIMEOUT_PROPOSE:-3s}\"" "$CONFIG_FILE"
+  yq -i ".consensus.timeout_propose_delta = \"${CONSENSUS_TIMEOUT_PROPOSE_DELTA:-500ms}\"" "$CONFIG_FILE"
+  yq -i ".consensus.timeout_prevote = \"${CONSENSUS_TIMEOUT_PREVOTE:-1s}\"" "$CONFIG_FILE"
+  yq -i ".consensus.timeout_prevote_delta = \"${CONSENSUS_TIMEOUT_PREVOTE_DELTA:-500ms}\"" "$CONFIG_FILE"
+  yq -i ".consensus.timeout_precommit = \"${CONSENSUS_TIMEOUT_PRECOMMIT:-1s}\"" "$CONFIG_FILE"
+  yq -i ".consensus.timeout_precommit_delta = \"${CONSENSUS_TIMEOUT_PRECOMMIT_DELTA:-500ms}\"" "$CONFIG_FILE"
   
   # Mempool Configuration
-  dasel put -f "$CONFIG_FILE" -v "${MEMPOOL_SIZE:-5000}" 'mempool.size'
-  dasel put -f "$CONFIG_FILE" -v "${MEMPOOL_CACHE_SIZE:-10000}" 'mempool.cache_size'
-  dasel put -f "$CONFIG_FILE" -v "${MEMPOOL_RECHECK:-true}" 'mempool.recheck'
-  dasel put -f "$CONFIG_FILE" -v "${MEMPOOL_BROADCAST:-true}" 'mempool.broadcast'
+  yq -i ".mempool.size = ${MEMPOOL_SIZE:-5000}" "$CONFIG_FILE"
+  yq -i ".mempool.cache_size = ${MEMPOOL_CACHE_SIZE:-10000}" "$CONFIG_FILE"
+  yq -i ".mempool.recheck = ${MEMPOOL_RECHECK:-true}" "$CONFIG_FILE"
+  yq -i ".mempool.broadcast = ${MEMPOOL_BROADCAST:-true}" "$CONFIG_FILE"
   
   # Instrumentation
-  dasel put -f "$CONFIG_FILE" -v "${PROMETHEUS_ENABLED:-true}" 'instrumentation.prometheus'
-  dasel put -f "$CONFIG_FILE" -v "${PROMETHEUS_LISTEN_ADDR:-:26660}" 'instrumentation.prometheus_listen_addr'
-  dasel put -f "$CONFIG_FILE" -v "${PROMETHEUS_NAMESPACE:-tendermint}" 'instrumentation.namespace'
+  yq -i ".instrumentation.prometheus = ${PROMETHEUS_ENABLED:-true}" "$CONFIG_FILE"
+  yq -i ".instrumentation.prometheus_listen_addr = \"${PROMETHEUS_LISTEN_ADDR:-:26660}\"" "$CONFIG_FILE"
+  yq -i ".instrumentation.namespace = \"${PROMETHEUS_NAMESPACE:-tendermint}\"" "$CONFIG_FILE"
   
   # FastSync Configuration
-  dasel put -f "$CONFIG_FILE" -v "${FASTSYNC_VERSION:-v0}" 'fastsync.version'
+  yq -i ".fastsync.version = \"${FASTSYNC_VERSION:-v0}\"" "$CONFIG_FILE"
   
   # TX Index Configuration
-  dasel put -f "$CONFIG_FILE" -v "${TX_INDEX_INDEXER:-kv}" 'tx_index.indexer'
+  yq -i ".tx_index.indexer = \"${TX_INDEX_INDEXER:-kv}\"" "$CONFIG_FILE"
   
   # Log Configuration
-  dasel put -f "$CONFIG_FILE" -v "${LOG_LEVEL:-info}" 'log_level'
-  dasel put -f "$CONFIG_FILE" -v "${NODE_LOG_FORMAT:-plain}" 'log_format'
+  yq -i ".log_level = \"${LOG_LEVEL:-info}\"" "$CONFIG_FILE"
+  yq -i ".log_format = \"${NODE_LOG_FORMAT:-plain}\"" "$CONFIG_FILE"
   
   # Update app.toml
   APP_CONFIG_FILE="${DAEMON_HOME}/config/app.toml"
   
   # API Configuration
-  dasel put -f "$APP_CONFIG_FILE" -v "true" 'api.enable'
-  dasel put -f "$APP_CONFIG_FILE" -v "false" 'api.swagger'
-  dasel put -f "$APP_CONFIG_FILE" -v "tcp://0.0.0.0:${REST_PORT:-1317}" 'api.address'
+  yq -i ".api.enable = true" "$APP_CONFIG_FILE"
+  yq -i ".api.swagger = false" "$APP_CONFIG_FILE"
+  yq -i ".api.address = \"tcp://0.0.0.0:${REST_PORT:-1317}\"" "$APP_CONFIG_FILE"
   
   # gRPC Configuration
-  dasel put -f "$APP_CONFIG_FILE" -v "true" 'grpc.enable'
-  dasel put -f "$APP_CONFIG_FILE" -v "0.0.0.0:${GRPC_PORT:-9090}" 'grpc.address'
+  yq -i ".grpc.enable = true" "$APP_CONFIG_FILE"
+  yq -i ".grpc.address = \"0.0.0.0:${GRPC_PORT:-9090}\"" "$APP_CONFIG_FILE"
   
   # gRPC Web Configuration  
-  dasel put -f "$APP_CONFIG_FILE" -v "true" 'grpc-web.enable'
-  dasel put -f "$APP_CONFIG_FILE" -v "0.0.0.0:${GRPC_WEB_PORT:-9091}" 'grpc-web.address'
+  yq -i ".grpc-web.enable = true" "$APP_CONFIG_FILE"
+  yq -i ".grpc-web.address = \"0.0.0.0:${GRPC_WEB_PORT:-9091}\"" "$APP_CONFIG_FILE"
   
   # Minimum gas price configuration in app.toml
   if [ -n "${MIN_GAS_PRICE:-}" ]; then
     echo "Setting minimum gas price in app.toml: $MIN_GAS_PRICE"
-    dasel put -f "$APP_CONFIG_FILE" -v "$MIN_GAS_PRICE" 'minimum-gas-prices' || true
+    yq -i ".minimum-gas-prices = \"$MIN_GAS_PRICE\"" "$APP_CONFIG_FILE" || true
   fi
   
   # Pruning configuration in app.toml
   if [ -n "${PRUNING_STRATEGY:-}" ]; then
     echo "Setting pruning strategy in app.toml: $PRUNING_STRATEGY"
-    dasel put -f "$APP_CONFIG_FILE" -v "$PRUNING_STRATEGY" 'pruning' || true
+    yq -i ".pruning = \"$PRUNING_STRATEGY\"" "$APP_CONFIG_FILE" || true
     
     if [ "$PRUNING_STRATEGY" = "custom" ]; then
       if [ -n "${PRUNING_KEEP_RECENT:-}" ]; then
         echo "Setting pruning-keep-recent in app.toml: $PRUNING_KEEP_RECENT"
-        dasel put -f "$APP_CONFIG_FILE" -v "$PRUNING_KEEP_RECENT" 'pruning-keep-recent' || true
+        yq -i ".pruning-keep-recent = \"$PRUNING_KEEP_RECENT\"" "$APP_CONFIG_FILE" || true
       fi
       
       if [ -n "${PRUNING_INTERVAL:-}" ]; then
         echo "Setting pruning-interval in app.toml: $PRUNING_INTERVAL"
-        dasel put -f "$APP_CONFIG_FILE" -v "$PRUNING_INTERVAL" 'pruning-interval' || true
+        yq -i ".pruning-interval = \"$PRUNING_INTERVAL\"" "$APP_CONFIG_FILE" || true
       fi
     fi
   fi
