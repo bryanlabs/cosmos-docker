@@ -1,45 +1,110 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
 # Get daemon name and version from environment
 DAEMON_NAME=${DAEMON_NAME:-cosmos}
 NODE_VERSION=${NODE_VERSION:-v1.0.0}
 DAEMON_HOME=${DAEMON_HOME:-/${DAEMON_NAME}}
 
-# Ensure bin directory exists and copy the binary from builds (always do this)
-if ! mkdir -p ${DAEMON_HOME}/bin; then
-  echo "❌ Failed to create ${DAEMON_HOME}/bin directory. Check permissions."
-  exit 1
-fi
+# Use DATA_DIR as the primary blockchain data location if set, otherwise fall back to DAEMON_HOME
+BLOCKCHAIN_HOME=${DATA_DIR:-${DAEMON_HOME}}
 
-if ! cp /builds/${DAEMON_NAME}-${NODE_VERSION} ${DAEMON_HOME}/bin/${DAEMON_NAME}; then
-  echo "❌ Failed to copy binary from /builds/${DAEMON_NAME}-${NODE_VERSION} to ${DAEMON_HOME}/bin/${DAEMON_NAME}"
+echo "Using blockchain data directory: ${BLOCKCHAIN_HOME}"
+
+# Create a local bin directory for the binary (use /tmp/bin which is writable)
+BIN_DIR="/tmp/bin"
+mkdir -p ${BIN_DIR}
+
+# Ensure bin directory exists and copy the binary from builds (always do this)
+if ! cp /builds/${DAEMON_NAME}-${NODE_VERSION} ${BIN_DIR}/${DAEMON_NAME}; then
+  echo "❌ Failed to copy binary from /builds/${DAEMON_NAME}-${NODE_VERSION} to ${BIN_DIR}/${DAEMON_NAME}"
   echo "Available files in /builds:"
   ls -la /builds/ || echo "Could not list /builds directory"
   exit 1
 fi
 
-chmod +x ${DAEMON_HOME}/bin/${DAEMON_NAME}
+chmod +x ${BIN_DIR}/${DAEMON_NAME}
 
-# Always download genesis file
-if [ -n "${GENESIS_URL:-}" ]; then
-  echo "Using configured genesis URL: $GENESIS_URL"
-  echo "Downloading to: ${DAEMON_HOME}/config/genesis.json"
-  if curl -f "$GENESIS_URL" -o ${DAEMON_HOME}/config/genesis.json; then
-    echo "Genesis file downloaded successfully"
-    echo "Genesis file size: $(ls -lh ${DAEMON_HOME}/config/genesis.json | awk '{print $5}')"
-  else
-    echo "❌ Failed to download genesis file from $GENESIS_URL"
-    exit 1
-  fi
-else
-  echo "No genesis URL configured, skipping genesis download..."
+# Add the binary directory to PATH
+export PATH="${BIN_DIR}:${PATH}"
+
+# Validate required environment variables early
+if [ -z "${NETWORK:-}" ]; then
+  echo "ERROR: NETWORK environment variable is required"
+  exit 1
 fi
 
-# Always update config.toml and app.toml with seeds, peers, external address, ports, and all config
-CONFIG_FILE="${DAEMON_HOME}/config/config.toml"
-APP_CONFIG_FILE="${DAEMON_HOME}/config/app.toml"
+if [ -z "${MONIKER:-}" ]; then
+  echo "ERROR: MONIKER environment variable is required"
+  exit 1
+fi
 
+# Step 1: Chain initialization (only if not already initialized)
+echo "Step 1: Chain initialization..."
+if [ ! -f "${BLOCKCHAIN_HOME}/config/config.toml" ]; then
+  echo "Initializing chain with default files..."
+  echo "Using blockchain home: ${BLOCKCHAIN_HOME}"
+  ${DAEMON_NAME} init $MONIKER --chain-id $NETWORK --home ${BLOCKCHAIN_HOME}
+  echo "✅ Chain initialization completed - default files created"
+else
+  echo "Chain already initialized, skipping init..."
+  echo "✅ Using existing chain configuration"
+fi
+
+# Step 2: Download and overwrite genesis file if configured
+if [ -n "${GENESIS_URL:-}" ]; then
+  echo "Step 2: Downloading genesis file..."
+  GENESIS_FILE="${BLOCKCHAIN_HOME}/config/genesis.json"
+  
+  # Check if we should download the genesis file
+  SHOULD_DOWNLOAD=false
+  
+  if [ ! -f "$GENESIS_FILE" ]; then
+    echo "Genesis file does not exist, will download..."
+    SHOULD_DOWNLOAD=true
+  else
+    # Check if it's the default genesis (small file) or if we want to force update
+    GENESIS_SIZE=$(stat -c%s "$GENESIS_FILE" 2>/dev/null || echo "0")
+    if [ "$GENESIS_SIZE" -lt 50000 ]; then  # Less than 50KB is likely default genesis
+      echo "Genesis file appears to be default (${GENESIS_SIZE} bytes), will download proper genesis..."
+      SHOULD_DOWNLOAD=true
+    else
+      echo "Genesis file already exists and appears valid (${GENESIS_SIZE} bytes), skipping download..."
+    fi
+  fi
+  
+  if [ "$SHOULD_DOWNLOAD" = "true" ]; then
+    echo "Downloading from: $GENESIS_URL"
+    echo "Target location: $GENESIS_FILE"
+    
+    if curl -f "$GENESIS_URL" -o "$GENESIS_FILE"; then
+      echo "✅ Genesis file downloaded and replaced successfully"
+      echo "Genesis file size: $(ls -lh ${BLOCKCHAIN_HOME}/config/genesis.json | awk '{print $5}')"
+    else
+      echo "❌ Failed to download genesis file from $GENESIS_URL"
+      exit 1
+    fi
+  fi
+else
+  echo "Step 2: No genesis URL configured, using default genesis from init..."
+fi
+
+# Step 3: Apply all configuration updates with dasel
+echo "Step 3: Applying node configuration..."
+CONFIG_FILE="${BLOCKCHAIN_HOME}/config/config.toml"
+APP_CONFIG_FILE="${BLOCKCHAIN_HOME}/config/app.toml"
+
+# Validate config files exist (they should after init)
+if [ ! -f "$CONFIG_FILE" ]; then
+  echo "ERROR: config.toml not found at $CONFIG_FILE after init"
+  exit 1
+fi
+
+if [ ! -f "$APP_CONFIG_FILE" ]; then
+  echo "ERROR: app.toml not found at $APP_CONFIG_FILE after init"
+  exit 1
+fi
+
+# P2P Configuration
 if [ -n "${SEEDS:-}" ]; then
   echo "Setting seeds: $SEEDS"
   dasel put -t string -f "$CONFIG_FILE" -v "$SEEDS" 'p2p.seeds'
@@ -48,12 +113,9 @@ if [ -n "${PERSISTENT_PEERS:-}" ]; then
   echo "Setting persistent peers: $PERSISTENT_PEERS"
   dasel put -t string -f "$CONFIG_FILE" -v "$PERSISTENT_PEERS" 'p2p.persistent_peers'
 fi
+
+# Network Configuration
 P2P_PORT=${P2P_PORT:-26656}
-echo "Using P2P_PORT: $P2P_PORT"
-if ! [[ "$P2P_PORT" =~ ^[0-9]+$ ]]; then
-  echo "ERROR: P2P_PORT must be a valid port number, got: $P2P_PORT"
-  exit 1
-fi
 if [ -n "${EXTERNAL_ADDRESS:-}" ]; then
   if [ "$EXTERNAL_ADDRESS" = "auto" ]; then
     echo "Auto-detecting external IP address..."
@@ -71,112 +133,53 @@ if [ -n "${EXTERNAL_ADDRESS:-}" ]; then
     dasel put -t string -f "$CONFIG_FILE" -v "$EXTERNAL_ADDRESS" 'p2p.external_address'
   fi
 fi
-if ! dasel put -t string -f "$CONFIG_FILE" -v "tcp://0.0.0.0:${RPC_PORT:-26657}" 'rpc.laddr'; then
-  echo "ERROR: Failed to set rpc.laddr in config file"
-  exit 1
+
+# Port Configuration
+dasel put -t string -f "$CONFIG_FILE" -v "tcp://0.0.0.0:${RPC_PORT:-26657}" 'rpc.laddr'
+dasel put -t string -f "$CONFIG_FILE" -v "tcp://0.0.0.0:$P2P_PORT" 'p2p.laddr'
+
+# State Sync Configuration
+dasel put -f "$CONFIG_FILE" -v "${STATESYNC_ENABLE:-false}" 'statesync.enable'
+if [ -n "${STATESYNC_RPC_SERVERS:-}" ]; then
+  echo "Setting statesync RPC servers: $STATESYNC_RPC_SERVERS"
+  dasel put -f "$CONFIG_FILE" -v "$STATESYNC_RPC_SERVERS" 'statesync.rpc_servers'
 fi
-P2P_LADDR_VALUE="tcp://0.0.0.0:$P2P_PORT"
-if ! dasel put -t string -f "$CONFIG_FILE" -v "$P2P_LADDR_VALUE" 'p2p.laddr'; then
-  echo "ERROR: Failed to set p2p.laddr in config file"
-  exit 1
+if [ -n "${STATESYNC_TRUST_HEIGHT:-}" ] && [ "${STATESYNC_TRUST_HEIGHT}" != "0" ]; then
+  echo "Setting state sync trust height: ${STATESYNC_TRUST_HEIGHT}"
+  dasel put -f "$CONFIG_FILE" -v "${STATESYNC_TRUST_HEIGHT}" 'statesync.trust_height'
 fi
+if [ -n "${STATESYNC_TRUST_HASH:-}" ]; then
+  echo "Setting state sync trust hash: ${STATESYNC_TRUST_HASH}"
+  dasel put -f "$CONFIG_FILE" -v "$STATESYNC_TRUST_HASH" 'statesync.trust_hash'
+fi
+dasel put -f "$CONFIG_FILE" -v "${STATESYNC_TRUST_PERIOD:-360h0m0s}" 'statesync.trust_period'
+dasel put -f "$CONFIG_FILE" -v "${STATESYNC_DISCOVERY_TIME:-15s}" 'statesync.discovery_time'
+dasel put -f "$CONFIG_FILE" -v "${STATESYNC_CHUNK_REQUEST_TIMEOUT:-10s}" 'statesync.chunk_request_timeout'
+dasel put -f "$CONFIG_FILE" -v "${STATESYNC_CHUNK_FETCHERS:-4}" 'statesync.chunk_fetchers'
 
 # Advanced P2P Settings
 dasel put -f "$CONFIG_FILE" -v "${MAX_INBOUND_PEERS:-40}" 'p2p.max_num_inbound_peers'
 dasel put -f "$CONFIG_FILE" -v "${MAX_OUTBOUND_PEERS:-10}" 'p2p.max_num_outbound_peers'
 dasel put -f "$CONFIG_FILE" -v "${P2P_PEX:-true}" 'p2p.pex'
 dasel put -f "$CONFIG_FILE" -v "${P2P_ADDR_BOOK_STRICT:-false}" 'p2p.addr_book_strict'
-dasel put -f "$CONFIG_FILE" -v "${P2P_FLUSH_THROTTLE_TIMEOUT:-100ms}" 'p2p.flush_throttle_timeout'
-dasel put -f "$CONFIG_FILE" -v "${P2P_DIAL_TIMEOUT:-3s}" 'p2p.dial_timeout'
-dasel put -f "$CONFIG_FILE" -v "${P2P_HANDSHAKE_TIMEOUT:-20s}" 'p2p.handshake_timeout'
-dasel put -f "$CONFIG_FILE" -v "${P2P_ALLOW_DUPLICATE_IP:-true}" 'p2p.allow_duplicate_ip'
-
-if [ -n "${PRIVATE_PEER_IDS:-}" ]; then
-  dasel put -f "$CONFIG_FILE" -v "$PRIVATE_PEER_IDS" 'p2p.private_peer_ids'
-fi
 
 # RPC Configuration
 dasel put -f "$CONFIG_FILE" -v "${RPC_CORS_ALLOWED_ORIGINS:-[\"*\"]}" 'rpc.cors_allowed_origins'
 dasel put -f "$CONFIG_FILE" -v "${RPC_MAX_OPEN_CONNECTIONS:-2000}" 'rpc.max_open_connections'
-dasel put -f "$CONFIG_FILE" -v "${RPC_GRPC_MAX_OPEN_CONNECTIONS:-2000}" 'rpc.grpc_max_open_connections'
 
-# State Sync Configuration
-dasel put -f "$CONFIG_FILE" -v "${STATESYNC_ENABLE:-false}" 'statesync.enable'
-if [ -n "${STATESYNC_RPC_SERVERS:-}" ]; then
-  dasel put -f "$CONFIG_FILE" -v "$STATESYNC_RPC_SERVERS" 'statesync.rpc_servers'
-fi
-dasel put -f "$CONFIG_FILE" -v "${STATESYNC_TRUST_PERIOD:-360h0m0s}" 'statesync.trust_period'
-
-# State sync trust height and hash (required for state sync to work)
-if [ -n "${STATESYNC_TRUST_HEIGHT:-}" ] && [ "${STATESYNC_TRUST_HEIGHT}" != "0" ]; then
-  dasel put -f "$CONFIG_FILE" -v "${STATESYNC_TRUST_HEIGHT}" 'statesync.trust_height'
-  echo "Setting state sync trust height: ${STATESYNC_TRUST_HEIGHT}"
-fi
-
-if [ -n "${STATESYNC_TRUST_HASH:-}" ]; then
-  dasel put -f "$CONFIG_FILE" -v "$STATESYNC_TRUST_HASH" 'statesync.trust_hash'
-  echo "Setting state sync trust hash: ${STATESYNC_TRUST_HASH}"
-fi
-
-# Additional state sync configuration
-dasel put -f "$CONFIG_FILE" -v "${STATESYNC_DISCOVERY_TIME:-15s}" 'statesync.discovery_time'
-dasel put -f "$CONFIG_FILE" -v "${STATESYNC_CHUNK_REQUEST_TIMEOUT:-10s}" 'statesync.chunk_request_timeout'
-dasel put -f "$CONFIG_FILE" -v "${STATESYNC_CHUNK_FETCHERS:-4}" 'statesync.chunk_fetchers'
-
-# Consensus Configuration
-dasel put -f "$CONFIG_FILE" -v "${CONSENSUS_TIMEOUT_COMMIT:-5s}" 'consensus.timeout_commit'
-dasel put -f "$CONFIG_FILE" -v "${CONSENSUS_CREATE_EMPTY_BLOCKS:-true}" 'consensus.create_empty_blocks'
-dasel put -f "$CONFIG_FILE" -v "${CONSENSUS_TIMEOUT_PROPOSE:-3s}" 'consensus.timeout_propose'
-dasel put -f "$CONFIG_FILE" -v "${CONSENSUS_TIMEOUT_PROPOSE_DELTA:-500ms}" 'consensus.timeout_propose_delta'
-dasel put -f "$CONFIG_FILE" -v "${CONSENSUS_TIMEOUT_PREVOTE:-1s}" 'consensus.timeout_prevote'
-dasel put -f "$CONFIG_FILE" -v "${CONSENSUS_TIMEOUT_PREVOTE_DELTA:-500ms}" 'consensus.timeout_prevote_delta'
-dasel put -f "$CONFIG_FILE" -v "${CONSENSUS_TIMEOUT_PRECOMMIT:-1s}" 'consensus.timeout_precommit'
-dasel put -f "$CONFIG_FILE" -v "${CONSENSUS_TIMEOUT_PRECOMMIT_DELTA:-500ms}" 'consensus.timeout_precommit_delta'
-
-# Mempool Configuration
-dasel put -f "$CONFIG_FILE" -v "${MEMPOOL_SIZE:-5000}" 'mempool.size'
-dasel put -f "$CONFIG_FILE" -v "${MEMPOOL_CACHE_SIZE:-10000}" 'mempool.cache_size'
-dasel put -f "$CONFIG_FILE" -v "${MEMPOOL_RECHECK:-true}" 'mempool.recheck'
-dasel put -f "$CONFIG_FILE" -v "${MEMPOOL_BROADCAST:-true}" 'mempool.broadcast'
-
-# Instrumentation
-dasel put -f "$CONFIG_FILE" -v "${PROMETHEUS_ENABLED:-true}" 'instrumentation.prometheus'
-dasel put -f "$CONFIG_FILE" -v "${PROMETHEUS_LISTEN_ADDR:-:26660}" 'instrumentation.prometheus_listen_addr'
-dasel put -f "$CONFIG_FILE" -v "${PROMETHEUS_NAMESPACE:-tendermint}" 'instrumentation.namespace'
-
-# FastSync Configuration
-dasel put -f "$CONFIG_FILE" -v "${FASTSYNC_VERSION:-v0}" 'fastsync.version'
-
-# TX Index Configuration
-dasel put -f "$CONFIG_FILE" -v "${TX_INDEX_INDEXER:-kv}" 'tx_index.indexer'
-
-# Log Configuration
-dasel put -f "$CONFIG_FILE" -v "${LOG_LEVEL:-info}" 'log_level'
-dasel put -f "$CONFIG_FILE" -v "${NODE_LOG_FORMAT:-plain}" 'log_format'
-
-# Update app.toml
-APP_CONFIG_FILE="${DAEMON_HOME}/config/app.toml"
-
-# API Configuration
+# App Configuration
 dasel put -f "$APP_CONFIG_FILE" -v "true" 'api.enable'
-dasel put -f "$APP_CONFIG_FILE" -v "false" 'api.swagger'
 dasel put -f "$APP_CONFIG_FILE" -v "tcp://0.0.0.0:${REST_PORT:-1317}" 'api.address'
-
-# gRPC Configuration
 dasel put -f "$APP_CONFIG_FILE" -v "true" 'grpc.enable'
 dasel put -f "$APP_CONFIG_FILE" -v "0.0.0.0:${GRPC_PORT:-9090}" 'grpc.address'
 
-# gRPC Web Configuration  
-dasel put -f "$APP_CONFIG_FILE" -v "true" 'grpc-web.enable'
-dasel put -f "$APP_CONFIG_FILE" -v "0.0.0.0:${GRPC_WEB_PORT:-9091}" 'grpc-web.address'
-
-# Minimum gas price configuration in app.toml
+# Minimum gas price configuration
 if [ -n "${MIN_GAS_PRICE:-}" ]; then
   echo "Setting minimum gas price in app.toml: $MIN_GAS_PRICE"
   dasel put -f "$APP_CONFIG_FILE" -v "$MIN_GAS_PRICE" 'minimum-gas-prices' || true
 fi
 
-# Pruning configuration in app.toml
+# Pruning configuration
 if [ -n "${PRUNING_STRATEGY:-}" ]; then
   echo "Setting pruning strategy in app.toml: $PRUNING_STRATEGY"
   dasel put -f "$APP_CONFIG_FILE" -v "$PRUNING_STRATEGY" 'pruning' || true
@@ -194,68 +197,67 @@ if [ -n "${PRUNING_STRATEGY:-}" ]; then
   fi
 fi
 
-# Only builds and snapshot logic in initialize
-if [[ ! -f ${DAEMON_HOME}/.initialized ]]; then
-  echo "Initializing ${DAEMON_NAME} node!"
-  echo "Running init..."
-  ${DAEMON_HOME}/bin/${DAEMON_NAME} init $MONIKER --chain-id $NETWORK --home ${DAEMON_HOME} --overwrite
+echo "✅ Node configuration applied"
 
-  # Snapshot logic (as before)
-  if [ -n "${SNAPSHOT:-}" ]; then
+# Step 4: Check if snapshot restore is needed
+echo "Step 4: Checking snapshot requirements..."
+# Check if database files exist (only if data directory exists)
+if [ -d "${BLOCKCHAIN_HOME}/data" ]; then
+  ls ${BLOCKCHAIN_HOME}/data/*.db 1> /dev/null 2>&1
+  DB_EXISTS=$?
+else
+  echo "Data directory does not exist yet"
+  DB_EXISTS=1
+fi
+
+if [ $DB_EXISTS -eq 0 ]; then
+  echo "Database files already exist, skipping snapshot restore"
+else
+  echo "No database files found, checking for snapshot configuration..."
+  
+  # Count actual database/state files (excluding priv_validator_state.json)
+  if [ -d "${BLOCKCHAIN_HOME}/data" ]; then
+    DATA_FILE_COUNT=$(find ${BLOCKCHAIN_HOME}/data -type f -not -name "priv_validator_state.json" | wc -l)
+  else
+    DATA_FILE_COUNT=0
+  fi
+  
+  if [ "$DATA_FILE_COUNT" -eq 0 ] && [ -n "${SNAPSHOT:-}" ]; then
+    echo "Data directory is minimal and snapshot is configured"
     echo "Using specified snapshot: $SNAPSHOT"
-    if [[ "$SNAPSHOT" == *.tar.lz4 ]]; then
-      echo "Downloading and extracting LZ4 snapshot..."
-      curl -o - -L "$SNAPSHOT" | lz4 -c -d - | tar --exclude='data/priv_validator_state.json' -xv -C ${DAEMON_HOME}
-      echo "LZ4 snapshot extraction completed successfully!"
-    elif [[ "$SNAPSHOT" == *.tar.gz ]]; then
-      echo "Downloading and extracting GZ snapshot..."
-      curl -o - -L "$SNAPSHOT" | tar --exclude='data/priv_validator_state.json' -xzvf - -C ${DAEMON_HOME}
-      echo "GZ snapshot extraction completed successfully!"
-    else
-      echo "Unsupported snapshot format: $SNAPSHOT"
-      exit 1
+    if ! download_and_extract_snapshot "$SNAPSHOT"; then
+      echo "❌ Snapshot download/extraction failed. Will continue without snapshot..."
+      echo "The node will sync from genesis (this will take much longer)"
     fi
-  elif [ -n "${SNAPSHOT_API_URL:-}" ] && [ -n "${SNAPSHOT_BASE_URL:-}" ]; then
-    echo "Fetching latest snapshot automatically..."
+  elif [ "$DATA_FILE_COUNT" -eq 0 ] && [ -n "${SNAPSHOT_API_URL:-}" ] && [ -n "${SNAPSHOT_BASE_URL:-}" ]; then
+    echo "Data directory is minimal, fetching latest snapshot automatically..."
     CHAIN_PREFIX=$(echo "$SNAPSHOT_API_URL" | grep -oE 'prefix=[^&]*' | cut -d'=' -f2 || echo "$DAEMON_NAME")
     FILENAME=$(curl -s "$SNAPSHOT_API_URL" | grep -Eo "${CHAIN_PREFIX}/[0-9]+.tar.gz" | sort -n | tail -n 1 | cut -d "/" -f 2)
     if [ -n "$FILENAME" ]; then
       echo "Using latest snapshot: $FILENAME"
-      aria2c --split=16 --max-concurrent-downloads=16 --max-connection-per-server=16 --continue --min-split-size=100M -d ${DAEMON_HOME} -o $FILENAME "${SNAPSHOT_BASE_URL}${FILENAME}"
-      echo "Download completed. Preparing to extract snapshot..."
-      rm -rf ${DAEMON_HOME}/data/*.db ${DAEMON_HOME}/data/snapshot ${DAEMON_HOME}/data/cs.wal
-      FILESIZE=$(du -h ${DAEMON_HOME}/$FILENAME | cut -f1)
-      echo "Extracting snapshot ($FILESIZE)..."
-      pv ${DAEMON_HOME}/$FILENAME | tar --exclude='data/priv_validator_state.json' -xzf - -C ${DAEMON_HOME}
-      rm ${DAEMON_HOME}/$FILENAME
-      echo "Snapshot extraction completed successfully!"
+      if ! download_and_extract_snapshot "${SNAPSHOT_BASE_URL}${FILENAME}"; then
+        echo "❌ Snapshot download/extraction failed. Will continue without snapshot..."
+        echo "The node will sync from genesis (this will take much longer)"
+      fi
+      echo "✅ Snapshot extraction completed successfully!"
     else
-      echo "No snapshot found, starting from genesis..."
+      echo "No snapshot found, will start syncing from genesis block 1..."
     fi
   else
-    echo "No snapshot configuration provided, starting from genesis..."
+    echo "Will start syncing from genesis block 1..."
   fi
-  touch ${DAEMON_HOME}/.initialized
-  echo "Initialization complete!"
 fi
 
-# Validate required environment variables
-if [ -z "${NETWORK:-}" ]; then
-  echo "ERROR: NETWORK environment variable is required"
-  exit 1
-fi
+echo "✅ Initialization completed!"
 
-if [ -z "${MONIKER:-}" ]; then
-  echo "ERROR: MONIKER environment variable is required"
-  exit 1
-fi
+sleep 5000
 
 # Validate that genesis file exists and is readable
-GENESIS_FILE="${DAEMON_HOME}/config/genesis.json"
+GENESIS_FILE="${BLOCKCHAIN_HOME}/config/genesis.json"
 if [ ! -f "$GENESIS_FILE" ]; then
   echo "ERROR: Genesis file not found at $GENESIS_FILE"
   echo "Available files in config directory:"
-  ls -la ${DAEMON_HOME}/config/ || echo "Config directory not accessible"
+  ls -la ${BLOCKCHAIN_HOME}/config/ || echo "Config directory not accessible"
   exit 1
 fi
 
@@ -270,11 +272,11 @@ echo "✅ Genesis file validation passed: $GENESIS_FILE"
 echo "Starting ${DAEMON_NAME} node..."
 echo "Network: $NETWORK"
 echo "Moniker: $MONIKER"
-echo "Home: ${DAEMON_HOME}"
+echo "Home: ${BLOCKCHAIN_HOME}"
 echo "Version: $NODE_VERSION"
 
 # Build the command with configured flags
-CMD="${DAEMON_HOME}/bin/${DAEMON_NAME} start --home ${DAEMON_HOME}"
+CMD="${DAEMON_NAME} start --home ${BLOCKCHAIN_HOME}"
 
 # Add minimum gas price if configured
 if [ -n "${MIN_GAS_PRICE:-}" ]; then
@@ -311,4 +313,36 @@ echo "Executing command: $CMD"
 
 # Execute the command
 exec $CMD
+
+# Function to download, decompress, extract, and clean up snapshot
+# Usage: download_and_extract_snapshot <snapshot_url>
+download_and_extract_snapshot() {
+  local SNAP_URL="$1"
+  local FILENAME FILEPATH
+  FILENAME=$(basename "$SNAP_URL")
+  echo "Downloading snapshot: $SNAP_URL"
+  aria2c --split=16 --max-concurrent-downloads=16 --max-connection-per-server=16 --continue --min-split-size=100M -d ${BLOCKCHAIN_HOME} -o "$FILENAME" "$SNAP_URL"
+  FILEPATH="${BLOCKCHAIN_HOME}/$FILENAME"
+  if [[ "$FILENAME" == *.tar.lz4 ]]; then
+    echo "Decompressing LZ4 archive..."
+    lz4 -c -d "$FILEPATH" > "${BLOCKCHAIN_HOME}/snapshot.tar"
+    rm "$FILEPATH"
+  elif [[ "$FILENAME" == *.tar.gz ]]; then
+    echo "Decompressing GZ archive..."
+    gzip -d -c "$FILEPATH" > "${BLOCKCHAIN_HOME}/snapshot.tar"
+    rm "$FILEPATH"
+  elif [[ "$FILENAME" == *.tar.zst ]]; then
+    echo "Decompressing ZST archive..."
+    zstd -d -c "$FILEPATH" > "${BLOCKCHAIN_HOME}/snapshot.tar"
+    rm "$FILEPATH"
+  else
+    echo "Unsupported snapshot format: $FILENAME"
+    rm -f "$FILEPATH"
+    return 1
+  fi
+  echo "Extracting tarball..."
+  tar --exclude='data/priv_validator_state.json' -xvf "${BLOCKCHAIN_HOME}/snapshot.tar" -C ${BLOCKCHAIN_HOME}
+  rm "${BLOCKCHAIN_HOME}/snapshot.tar"
+  echo "✅ Snapshot extraction completed successfully!"
+}
 

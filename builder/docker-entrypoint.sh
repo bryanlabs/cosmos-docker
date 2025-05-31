@@ -3,6 +3,7 @@ set -euo pipefail
 
 NODE_VERSION=${NODE_VERSION:-v1.0.0}
 DAEMON_NAME=${DAEMON_NAME:-cosmos}
+FORCE_REBUILD=${FORCE_REBUILD:-false}
 
 # Check if binary already exists
 if [ -f "/builds/${DAEMON_NAME}-${NODE_VERSION}" ] && [ "$FORCE_REBUILD" != "true" ]; then

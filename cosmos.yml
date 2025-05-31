@@ -146,6 +146,7 @@ services:
       - GOMEMLIMIT=${GOMEMLIMIT:-}
       - DAEMON_HOME=${DAEMON_HOME:-/cosmos}
       - DAEMON_NAME=${DAEMON_NAME:-cosmos}
+      - DATA_DIR=${DATA_DIR:-/mnt/data/blockchain/${NETWORK}}
     ports:
       - ${P2P_PORT:-26656}:${P2P_PORT:-26656}/tcp
       - ${RPC_PORT:-26657}:${RPC_PORT:-26657}/tcp
@@ -163,13 +164,10 @@ services:
       retries: 3
       start_period: 60s
     volumes:
-      - ${DATA_DIR:-/mnt/data/blockchain/${NETWORK}}:${DAEMON_HOME:-/cosmos}
+      - ${DATA_DIR:-/mnt/data/blockchain/${NETWORK}}:${DATA_DIR:-/mnt/data/blockchain/${NETWORK}}
       - node-builds:/builds
     entrypoint:
       - docker-entrypoint.sh
-      - start
-      - --home
-      - ${DAEMON_HOME:-/cosmos}
 
 volumes:
   node-data:

@@ -1,4 +1,4 @@
-.PHONY: help start stop restart logs status clean build watch monitor setup-data-dir
+.PHONY: help start stop restart logs status clean clean-all clean-images clean-builds build watch monitor setup-data-dir
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -26,6 +26,18 @@ start: ## Start Cosmos node with complete monitoring
 	if [ -z "$$RPC_PORT" ]; then RPC_PORT=26657; fi; \
 	P2P_PORT=$$(grep "^P2P_PORT=" .env | cut -d'=' -f2 | head -1); \
 	if [ -z "$$P2P_PORT" ]; then P2P_PORT=26656; fi; \
+	REST_PORT=$$(grep "^REST_PORT=" .env | cut -d'=' -f2 | head -1); \
+	if [ -z "$$REST_PORT" ]; then REST_PORT=1317; fi; \
+	GRPC_PORT=$$(grep "^GRPC_PORT=" .env | cut -d'=' -f2 | head -1); \
+	if [ -z "$$GRPC_PORT" ]; then GRPC_PORT=9090; fi; \
+	GRPC_WEB_PORT=$$(grep "^GRPC_WEB_PORT=" .env | cut -d'=' -f2 | head -1); \
+	if [ -z "$$GRPC_WEB_PORT" ]; then GRPC_WEB_PORT=9091; fi; \
+	EXTERNAL_ADDRESS=$$(grep "^EXTERNAL_ADDRESS=" .env | cut -d'=' -f2 | head -1); \
+	if [ -z "$$EXTERNAL_ADDRESS" ] || [ "$$EXTERNAL_ADDRESS" = "auto" ]; then \
+		EXTERNAL_IP=$$(curl -s --connect-timeout 5 ifconfig.me 2>/dev/null || echo "localhost"); \
+	else \
+		EXTERNAL_IP="$$EXTERNAL_ADDRESS"; \
+	fi; \
 	DATA_DIR=$$(grep "^DATA_DIR=" .env | cut -d'=' -f2 | head -1); \
 	if [ -n "$$DATA_DIR" ]; then \
 		RESOLVED_DATA_DIR=$$(echo "$$DATA_DIR" | sed "s/\$${NETWORK}/$$NETWORK_NAME/g"); \
@@ -34,13 +46,19 @@ start: ## Start Cosmos node with complete monitoring
 	fi; \
 	echo "🚀 Starting $$NETWORK_NAME Node..."; \
 	echo ""; \
-	echo "📋 Current configuration:"; \
-	echo "   NODE_VERSION=$$NODE_VERSION"; \
-	echo "   NETWORK=$$NETWORK_NAME"; \
-	echo "   DAEMON_NAME=$$DAEMON_NAME"; \
-	echo "   RPC_PORT=$$RPC_PORT"; \
-	echo "   P2P_PORT=$$P2P_PORT"; \
-	echo "   DATA_DIR=$$RESOLVED_DATA_DIR"; \
+	echo "📋 Configuration Summary:"; \
+	echo "   \033[1;33mNetwork:\033[0m $$NETWORK_NAME ($$NODE_VERSION)"; \
+	echo "   \033[1;33mDaemon:\033[0m $$DAEMON_NAME"; \
+	echo "   \033[1;33mData Dir:\033[0m $$RESOLVED_DATA_DIR"; \
+	echo ""; \
+	echo "🌐 Network Endpoints (will be available after startup):"; \
+	echo "   \033[1;33mRPC:\033[0m     http://$$EXTERNAL_IP:$$RPC_PORT"; \
+	echo "   \033[1;33mAPI:\033[0m     http://$$EXTERNAL_IP:$$REST_PORT"; \
+	echo "   \033[1;33mP2P:\033[0m     $$EXTERNAL_IP:$$P2P_PORT"; \
+	echo "   \033[1;33mgRPC:\033[0m    $$EXTERNAL_IP:$$GRPC_PORT"; \
+	echo "   \033[1;33mgRPC-Web:\033[0m http://$$EXTERNAL_IP:$$GRPC_WEB_PORT"; \
+	echo ""; \
+	echo "💡 Use '\033[1;32mmake status\033[0m' after startup for detailed node information including P2P ID"; \
 	echo ""; \
 	echo "🐳 Starting Docker containers in background..."; \
 	HOST_UID=$$(id -u) HOST_GID=$$(id -g) docker compose up -d --no-deps builder; \
@@ -70,7 +88,7 @@ watch-all: ## Watch both builder and cosmos services intelligently
 	@echo "👀 Watching all services..."
 	@docker compose logs -f builder 2>/dev/null | while read line; do \
 		echo "🔨 BUILDER: $$line"; \
-		if echo "$$line" | grep -q "binary is ready\|Build complete\|Successfully tagged"; then \
+		if echo "$$line" | grep -q "binary is ready\|Build complete\|Successfully tagged\|Skipping build"; then \
 			echo "✅ Builder service completed successfully!"; \
 			echo "🚀 Starting cosmos service..."; \
 			HOST_UID=$$(id -u) HOST_GID=$$(id -g) docker compose up -d cosmos >/dev/null 2>&1; \
@@ -104,7 +122,7 @@ watch-builder: ## Watch builder service until node binary is ready
 	@echo "👀 Watching builder service..."
 	@docker compose logs -f builder --since 0s | while read line; do \
 		echo "🔨 BUILDER: $$line"; \
-		if echo "$$line" | grep -q "binary is ready\|Build complete\|Successfully tagged"; then \
+		if echo "$$line" | grep -q "binary is ready\|Build complete\|Successfully tagged\|Skipping build"; then \
 			echo "✅ Builder service completed successfully!"; \
 			break; \
 		fi; \
@@ -279,14 +297,49 @@ status: ## Show comprehensive node status
 	fi
 	@echo ""
 	@echo "\033[1;36m🔗 === Quick Commands ===\033[0m"
-	@echo "   \033[1;33mLogs:\033[0m     \033[1;32mmake logs\033[0m"
-	@echo "   \033[1;33mMonitor:\033[0m  \033[1;32mmake monitor\033[0m"  
-	@echo "   \033[1;33mStop:\033[0m     \033[1;32mmake stop\033[0m"
+	@echo "   \033[1;33mLogs:\033[0m       \033[1;32mmake logs\033[0m"
+	@echo "   \033[1;33mMonitor:\033[0m    \033[1;32mmake monitor\033[0m"  
+	@echo "   \033[1;33mStop:\033[0m       \033[1;32mmake stop\033[0m"
+	@echo "   \033[1;33mClean:\033[0m      \033[1;32mmake clean\033[0m \033[1;90m(preserves images & builds)\033[0m"
+	@echo "   \033[1;33mClean All:\033[0m  \033[1;32mmake clean-all\033[0m \033[1;90m(removes everything)\033[0m"
 
-clean: ## Remove all containers, volumes, and data
-	@echo "🧹 Cleaning up all Docker resources and data..."
+clean: ## Remove containers and volumes (preserves images and builds)
+	@echo "🧹 Cleaning up containers and volumes (preserving images and builds)..."
+	docker compose down --remove-orphans 2>/dev/null || true
+	@echo "🔍 Removing any remaining containers..."
+	@CONTAINERS=$$(docker ps -aq 2>/dev/null); \
+	if [ -n "$$CONTAINERS" ]; then \
+		docker kill $$CONTAINERS 2>/dev/null || true; \
+		docker rm $$CONTAINERS 2>/dev/null || true; \
+	fi
+	@echo "🗂️  Removing data volumes (preserving build cache)..."
+	@VOLUMES=$$(docker volume ls -q 2>/dev/null | grep -v "node-builds\|builds" || true); \
+	if [ -n "$$VOLUMES" ]; then \
+		echo "$$VOLUMES" | xargs docker volume rm 2>/dev/null || true; \
+	fi
+	@echo "🧹 Removing unused networks..."
+	@docker network prune -f 2>/dev/null || true
+	@if [ -f .env ] && grep -q "^DATA_DIR=" .env; then \
+		DATA_PATH=$$(grep "^DATA_DIR=" .env | cut -d'=' -f2); \
+		NETWORK_NAME=$$(grep "^NETWORK=" .env | cut -d'=' -f2); \
+		RESOLVED_DATA_PATH=$$(echo "$$DATA_PATH" | sed "s/\$${NETWORK}/$$NETWORK_NAME/g"); \
+		echo "⚠️  Custom data directory detected: $$RESOLVED_DATA_PATH"; \
+		echo "   Data will NOT be automatically removed for safety."; \
+		echo "   To manually remove: sudo rm -rf $$RESOLVED_DATA_PATH"; \
+	fi
+	@echo "✅ Cleanup complete! (Images and build cache preserved for faster rebuilds)"
+	@echo "💡 Use 'make clean-all' to remove everything including images and builds"
+
+clean-all: ## Remove everything including images
+	@echo "🧹 Complete cleanup - removing containers, volumes, images, and data..."
 	docker compose down -v --remove-orphans 2>/dev/null || true
-	docker kill $$(docker ps -q) 2>/dev/null || true
+	@echo "🔍 Removing all containers..."
+	@CONTAINERS=$$(docker ps -aq 2>/dev/null); \
+	if [ -n "$$CONTAINERS" ]; then \
+		docker kill $$CONTAINERS 2>/dev/null || true; \
+		docker rm $$CONTAINERS 2>/dev/null || true; \
+	fi
+	@echo "🖼️  Removing all images, volumes, and cache..."
 	docker system prune -af --volumes
 	@if [ -f .env ] && grep -q "^DATA_DIR=" .env; then \
 		DATA_PATH=$$(grep "^DATA_DIR=" .env | cut -d'=' -f2); \
@@ -296,7 +349,31 @@ clean: ## Remove all containers, volumes, and data
 		echo "   Data will NOT be automatically removed for safety."; \
 		echo "   To manually remove: sudo rm -rf $$RESOLVED_DATA_PATH"; \
 	fi
-	@echo "✅ Cleanup complete!"
+	@echo "✅ Complete cleanup finished!"
+
+clean-builds: ## Remove only build cache volumes (forces rebuild)
+	@echo "🧹 Removing build cache volumes..."
+	@BUILD_VOLUMES=$$(docker volume ls -q 2>/dev/null | grep -E "node-builds|builds" || true); \
+	if [ -n "$$BUILD_VOLUMES" ]; then \
+		echo "Found build volumes to remove:"; \
+		echo "$$BUILD_VOLUMES"; \
+		echo "$$BUILD_VOLUMES" | xargs docker volume rm 2>/dev/null || true; \
+		echo "✅ Build cache removed - next start will trigger rebuild"; \
+	else \
+		echo "No build volumes found to remove"; \
+	fi
+
+clean-images: ## Remove only built images (cosmos and builder)
+	@echo "🖼️  Removing cosmos and builder images..."
+	@IMAGES=$$(docker images --format "table {{.Repository}}:{{.Tag}}" | grep -E "(osmosisd|cosmoshub|thorchain|builder):" | awk '{print $$1}' 2>/dev/null); \
+	if [ -n "$$IMAGES" ]; then \
+		echo "Found images to remove:"; \
+		echo "$$IMAGES"; \
+		echo "$$IMAGES" | xargs docker rmi -f 2>/dev/null || true; \
+		echo "✅ Images removed!"; \
+	else \
+		echo "No cosmos/builder images found to remove"; \
+	fi
 
 build: ## Force rebuild containers
 	HOST_UID=$$(id -u) HOST_GID=$$(id -g) docker compose build --no-cache
@@ -313,8 +390,8 @@ setup-data-dir: ## Setup custom data directory (requires DATA_DIR in .env)
 	NETWORK_NAME=$$(grep "^NETWORK=" .env | cut -d'=' -f2 | head -1); \
 	RESOLVED_DATA_PATH=$$(echo "$$DATA_PATH" | sed "s/\$${NETWORK}/$$NETWORK_NAME/g"); \
 	echo "🗂️  Setting up data directory: $$RESOLVED_DATA_PATH"; \
-	sudo mkdir -p "$$RESOLVED_DATA_PATH" && \
-	sudo chown $$(id -u):$$(id -g) "$$RESOLVED_DATA_PATH" && \
+	mkdir -p "$$RESOLVED_DATA_PATH" && \
+	chown $$(id -u):$$(id -g) "$$RESOLVED_DATA_PATH" && \
 	echo "✅ Data directory $$RESOLVED_DATA_PATH is ready!" || \
 	echo "❌ Failed to setup data directory. Check permissions and path."
 
