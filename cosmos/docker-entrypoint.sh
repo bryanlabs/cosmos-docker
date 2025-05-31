@@ -184,6 +184,22 @@ if [[ ! -f ${DAEMON_HOME}/.initialized ]]; then
   fi
   dasel put -f "$CONFIG_FILE" -v "${STATESYNC_TRUST_PERIOD:-360h0m0s}" 'statesync.trust_period'
   
+  # State sync trust height and hash (required for state sync to work)
+  if [ -n "${STATESYNC_TRUST_HEIGHT:-}" ] && [ "${STATESYNC_TRUST_HEIGHT}" != "0" ]; then
+    dasel put -f "$CONFIG_FILE" -v "${STATESYNC_TRUST_HEIGHT}" 'statesync.trust_height'
+    echo "Setting state sync trust height: ${STATESYNC_TRUST_HEIGHT}"
+  fi
+  
+  if [ -n "${STATESYNC_TRUST_HASH:-}" ]; then
+    dasel put -f "$CONFIG_FILE" -v "$STATESYNC_TRUST_HASH" 'statesync.trust_hash'
+    echo "Setting state sync trust hash: ${STATESYNC_TRUST_HASH}"
+  fi
+  
+  # Additional state sync configuration
+  dasel put -f "$CONFIG_FILE" -v "${STATESYNC_DISCOVERY_TIME:-15s}" 'statesync.discovery_time'
+  dasel put -f "$CONFIG_FILE" -v "${STATESYNC_CHUNK_REQUEST_TIMEOUT:-10s}" 'statesync.chunk_request_timeout'
+  dasel put -f "$CONFIG_FILE" -v "${STATESYNC_CHUNK_FETCHERS:-4}" 'statesync.chunk_fetchers'
+  
   # Consensus Configuration
   dasel put -f "$CONFIG_FILE" -v "${CONSENSUS_TIMEOUT_COMMIT:-5s}" 'consensus.timeout_commit'
   dasel put -f "$CONFIG_FILE" -v "${CONSENSUS_CREATE_EMPTY_BLOCKS:-true}" 'consensus.create_empty_blocks'
