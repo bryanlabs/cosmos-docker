@@ -92,13 +92,26 @@ apply_config_overrides() {
   fi
 
   # P2P Configuration
-  if [ -n "${SEEDS:-}" ]; then
-    log "Setting seeds: $SEEDS"
-    dasel put -t string -f "$CONFIG_FILE" -v "$SEEDS" 'p2p.seeds'
+  # Handle SEEDS - support both setting and clearing
+  if [ "${SEEDS+set}" = "set" ]; then
+    if [ -n "$SEEDS" ]; then
+      log "Setting seeds: $SEEDS"
+      dasel put -t string -f "$CONFIG_FILE" -v "$SEEDS" 'p2p.seeds'
+    else
+      log "Clearing seeds (empty value provided)"
+      dasel put -t string -f "$CONFIG_FILE" -v "" 'p2p.seeds'
+    fi
   fi
-  if [ -n "${PERSISTENT_PEERS:-}" ]; then
-    log "Setting persistent peers: $PERSISTENT_PEERS"
-    dasel put -t string -f "$CONFIG_FILE" -v "$PERSISTENT_PEERS" 'p2p.persistent_peers'
+  
+  # Handle PERSISTENT_PEERS - support both setting and clearing
+  if [ "${PERSISTENT_PEERS+set}" = "set" ]; then
+    if [ -n "$PERSISTENT_PEERS" ]; then
+      log "Setting persistent peers: $PERSISTENT_PEERS"
+      dasel put -t string -f "$CONFIG_FILE" -v "$PERSISTENT_PEERS" 'p2p.persistent_peers'
+    else
+      log "Clearing persistent peers (empty value provided)"
+      dasel put -t string -f "$CONFIG_FILE" -v "" 'p2p.persistent_peers'
+    fi
   fi
 
   # Network Configuration
@@ -127,17 +140,36 @@ apply_config_overrides() {
 
   # State Sync Configuration
   dasel put -f "$CONFIG_FILE" -v "${STATESYNC_ENABLE:-false}" 'statesync.enable'
-  if [ -n "${STATESYNC_RPC_SERVERS:-}" ]; then
-    log "Setting statesync RPC servers: $STATESYNC_RPC_SERVERS"
-    dasel put -f "$CONFIG_FILE" -v "$STATESYNC_RPC_SERVERS" 'statesync.rpc_servers'
+  
+  # Handle STATESYNC_RPC_SERVERS - support both setting and clearing
+  if [ "${STATESYNC_RPC_SERVERS+set}" = "set" ]; then
+    if [ -n "$STATESYNC_RPC_SERVERS" ]; then
+      log "Setting statesync RPC servers: $STATESYNC_RPC_SERVERS"
+      dasel put -f "$CONFIG_FILE" -v "$STATESYNC_RPC_SERVERS" 'statesync.rpc_servers'
+    else
+      log "Clearing statesync RPC servers (empty value provided)"
+      dasel put -f "$CONFIG_FILE" -v "" 'statesync.rpc_servers'
+    fi
   fi
-  if [ -n "${STATESYNC_TRUST_HEIGHT:-}" ] && [ "${STATESYNC_TRUST_HEIGHT}" != "0" ]; then
-    log "Setting state sync trust height: ${STATESYNC_TRUST_HEIGHT}"
-    dasel put -f "$CONFIG_FILE" -v "${STATESYNC_TRUST_HEIGHT}" 'statesync.trust_height'
+  
+  # Handle STATESYNC_TRUST_HEIGHT - special case with 0 check
+  if [ "${STATESYNC_TRUST_HEIGHT+set}" = "set" ]; then
+    if [ -n "$STATESYNC_TRUST_HEIGHT" ] && [ "$STATESYNC_TRUST_HEIGHT" != "0" ]; then
+      log "Setting state sync trust height: $STATESYNC_TRUST_HEIGHT"
+      dasel put -f "$CONFIG_FILE" -v "$STATESYNC_TRUST_HEIGHT" 'statesync.trust_height'
+    else
+      log "Clearing state sync trust height (empty or zero value provided)"
+      dasel put -f "$CONFIG_FILE" -v "0" 'statesync.trust_height'
+    fi
   fi
-  if [ -n "${STATESYNC_TRUST_HASH:-}" ]; then
-    log "Setting state sync trust hash: ${STATESYNC_TRUST_HASH}"
-    dasel put -f "$CONFIG_FILE" -v "$STATESYNC_TRUST_HASH" 'statesync.trust_hash'
+  if [ "${STATESYNC_TRUST_HASH+set}" = "set" ]; then
+    if [ -n "$STATESYNC_TRUST_HASH" ]; then
+      log "Setting state sync trust hash: $STATESYNC_TRUST_HASH"
+      dasel put -f "$CONFIG_FILE" -v "$STATESYNC_TRUST_HASH" 'statesync.trust_hash'
+    else
+      log "Clearing state sync trust hash (empty value provided)"
+      dasel put -f "$CONFIG_FILE" -v "" 'statesync.trust_hash'
+    fi
   fi
   dasel put -f "$CONFIG_FILE" -v "${STATESYNC_TRUST_PERIOD:-360h0m0s}" 'statesync.trust_period'
   dasel put -f "$CONFIG_FILE" -v "${STATESYNC_DISCOVERY_TIME:-15s}" 'statesync.discovery_time'
@@ -153,8 +185,15 @@ apply_config_overrides() {
   dasel put -f "$CONFIG_FILE" -v "${P2P_DIAL_TIMEOUT:-3s}" 'p2p.dial_timeout'
   dasel put -f "$CONFIG_FILE" -v "${P2P_HANDSHAKE_TIMEOUT:-20s}" 'p2p.handshake_timeout'
   dasel put -f "$CONFIG_FILE" -v "${P2P_ALLOW_DUPLICATE_IP:-true}" 'p2p.allow_duplicate_ip'
-  if [ -n "${PRIVATE_PEER_IDS:-}" ]; then
-    dasel put -f "$CONFIG_FILE" -v "$PRIVATE_PEER_IDS" 'p2p.private_peer_ids'
+  # Handle PRIVATE_PEER_IDS - support both setting and clearing
+  if [ "${PRIVATE_PEER_IDS+set}" = "set" ]; then
+    if [ -n "$PRIVATE_PEER_IDS" ]; then
+      log "Setting private peer IDs: $PRIVATE_PEER_IDS"
+      dasel put -f "$CONFIG_FILE" -v "$PRIVATE_PEER_IDS" 'p2p.private_peer_ids'
+    else
+      log "Clearing private peer IDs (empty value provided)"
+      dasel put -f "$CONFIG_FILE" -v "" 'p2p.private_peer_ids'
+    fi
   fi
 
   # RPC Configuration
@@ -200,26 +239,36 @@ apply_config_overrides() {
   dasel put -f "$CONFIG_FILE" -v "${NODE_LOG_FORMAT:-plain}" 'log_format'
 
   # Minimum gas price configuration
-  if [ -n "${MIN_GAS_PRICE:-}" ]; then
-    log "Setting minimum gas price in app.toml: $MIN_GAS_PRICE"
-    dasel put -f "$APP_CONFIG_FILE" -v "$MIN_GAS_PRICE" 'minimum-gas-prices' || true
+  if [ "${MIN_GAS_PRICE+set}" = "set" ]; then
+    if [ -n "$MIN_GAS_PRICE" ]; then
+      log "Setting minimum gas price in app.toml: $MIN_GAS_PRICE"
+      dasel put -f "$APP_CONFIG_FILE" -v "$MIN_GAS_PRICE" 'minimum-gas-prices' || true
+    else
+      log "Clearing minimum gas price (empty value provided)"
+      dasel put -f "$APP_CONFIG_FILE" -v "" 'minimum-gas-prices' || true
+    fi
   fi
 
   # Pruning configuration
-  if [ -n "${PRUNING_STRATEGY:-}" ]; then
-    log "Setting pruning strategy in app.toml: $PRUNING_STRATEGY"
-    dasel put -f "$APP_CONFIG_FILE" -v "$PRUNING_STRATEGY" 'pruning' || true
+  if [ "${PRUNING_STRATEGY+set}" = "set" ]; then
+    if [ -n "$PRUNING_STRATEGY" ]; then
+      log "Setting pruning strategy in app.toml: $PRUNING_STRATEGY"
+      dasel put -f "$APP_CONFIG_FILE" -v "$PRUNING_STRATEGY" 'pruning' || true
 
-    if [ "$PRUNING_STRATEGY" = "custom" ]; then
-      if [ -n "${PRUNING_KEEP_RECENT:-}" ]; then
-        log "Setting pruning-keep-recent in app.toml: $PRUNING_KEEP_RECENT"
-        dasel put -f "$APP_CONFIG_FILE" -v "$PRUNING_KEEP_RECENT" 'pruning-keep-recent' || true
-      fi
+      if [ "$PRUNING_STRATEGY" = "custom" ]; then
+        if [ "${PRUNING_KEEP_RECENT+set}" = "set" ] && [ -n "$PRUNING_KEEP_RECENT" ]; then
+          log "Setting pruning-keep-recent in app.toml: $PRUNING_KEEP_RECENT"
+          dasel put -f "$APP_CONFIG_FILE" -v "$PRUNING_KEEP_RECENT" 'pruning-keep-recent' || true
+        fi
 
-      if [ -n "${PRUNING_INTERVAL:-}" ]; then
-        log "Setting pruning-interval in app.toml: $PRUNING_INTERVAL"
-        dasel put -f "$APP_CONFIG_FILE" -v "$PRUNING_INTERVAL" 'pruning-interval' || true
+        if [ "${PRUNING_INTERVAL+set}" = "set" ] && [ -n "$PRUNING_INTERVAL" ]; then
+          log "Setting pruning-interval in app.toml: $PRUNING_INTERVAL"
+          dasel put -f "$APP_CONFIG_FILE" -v "$PRUNING_INTERVAL" 'pruning-interval' || true
+        fi
       fi
+    else
+      log "Clearing pruning strategy (empty value provided)"
+      dasel put -f "$APP_CONFIG_FILE" -v "default" 'pruning' || true
     fi
   fi
 
@@ -269,23 +318,30 @@ restore_snapshot_if_needed() {
 
 build_start_command() {
   CMD="${DAEMON_NAME} start --home ${BLOCKCHAIN_HOME}"
-  if [ -n "${MIN_GAS_PRICE:-}" ]; then
+  
+  # Add minimum gas price if set
+  if [ "${MIN_GAS_PRICE+set}" = "set" ] && [ -n "$MIN_GAS_PRICE" ]; then
     CMD="$CMD --minimum-gas-prices=$MIN_GAS_PRICE"
   fi
-  if [ -n "${PRUNING_STRATEGY:-}" ]; then
+  
+  # Add pruning configuration if set
+  if [ "${PRUNING_STRATEGY+set}" = "set" ] && [ -n "$PRUNING_STRATEGY" ]; then
     CMD="$CMD --pruning=$PRUNING_STRATEGY"
     if [ "$PRUNING_STRATEGY" = "custom" ]; then
-      if [ -n "${PRUNING_KEEP_RECENT:-}" ]; then
+      if [ "${PRUNING_KEEP_RECENT+set}" = "set" ] && [ -n "$PRUNING_KEEP_RECENT" ]; then
         CMD="$CMD --pruning-keep-recent=$PRUNING_KEEP_RECENT"
       fi
-      if [ -n "${PRUNING_INTERVAL:-}" ]; then
+      if [ "${PRUNING_INTERVAL+set}" = "set" ] && [ -n "$PRUNING_INTERVAL" ]; then
         CMD="$CMD --pruning-interval=$PRUNING_INTERVAL"
       fi
     fi
   fi
-  if [ -n "${EXTRA_FLAGS:-}" ]; then
+  
+  # Add extra flags if set
+  if [ "${EXTRA_FLAGS+set}" = "set" ] && [ -n "$EXTRA_FLAGS" ]; then
     CMD="$CMD $EXTRA_FLAGS"
   fi
+  
   echo "$CMD"
 }
 

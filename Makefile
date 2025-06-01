@@ -15,8 +15,12 @@ start: ## Start Cosmos node with complete monitoring
 		echo "  cp osmosis-1.env .env"; \
 		exit 1; \
 	fi
-	@if grep -q "^DATA_DIR=" .env && [ "$$(grep "^DATA_DIR=" .env | cut -d'=' -f2)" != "" ]; then \
-		echo "🗂️  Custom DATA_DIR detected, setting up directory..."; \
+	@DATA_DIR_FROM_ENV=$$(grep "^DATA_DIR=" .env 2>/dev/null | cut -d'=' -f2 || true); \
+	DATA_DIR_FROM_DEFAULTS=$$(grep "^DATA_DIR=" defaults.env 2>/dev/null | cut -d'=' -f2 || true); \
+	EFFECTIVE_DATA_DIR=$${DATA_DIR_FROM_ENV:-$$DATA_DIR_FROM_DEFAULTS}; \
+	if [ -n "$$EFFECTIVE_DATA_DIR" ]; then \
+		echo "🗂️  Custom DATA_DIR detected: $$EFFECTIVE_DATA_DIR"; \
+		echo "🗂️  Setting up directory..."; \
 		$(MAKE) setup-data-dir; \
 	fi
 	@NETWORK_NAME=$$(grep "^NETWORK=" .env | cut -d'=' -f2 | head -1); \
@@ -38,7 +42,9 @@ start: ## Start Cosmos node with complete monitoring
 	else \
 		EXTERNAL_IP="$$EXTERNAL_ADDRESS"; \
 	fi; \
-	DATA_DIR=$$(grep "^DATA_DIR=" .env | cut -d'=' -f2 | head -1); \
+	DATA_DIR_FROM_ENV=$$(grep "^DATA_DIR=" .env 2>/dev/null | cut -d'=' -f2 || true); \
+	DATA_DIR_FROM_DEFAULTS=$$(grep "^DATA_DIR=" defaults.env 2>/dev/null | cut -d'=' -f2 || true); \
+	DATA_DIR=$${DATA_DIR_FROM_ENV:-$$DATA_DIR_FROM_DEFAULTS}; \
 	if [ -n "$$DATA_DIR" ]; then \
 		RESOLVED_DATA_DIR=$$(echo "$$DATA_DIR" | sed "s/\$${NETWORK}/$$NETWORK_NAME/g"); \
 	else \
@@ -319,13 +325,15 @@ clean: ## Remove containers and volumes (preserves images and builds)
 	fi
 	@echo "🧹 Removing unused networks..."
 	@docker network prune -f 2>/dev/null || true
-	@if [ -f .env ] && grep -q "^DATA_DIR=" .env; then \
-		DATA_PATH=$$(grep "^DATA_DIR=" .env | cut -d'=' -f2); \
+	@DATA_DIR_FROM_ENV=$$(grep "^DATA_DIR=" .env 2>/dev/null | cut -d'=' -f2 || true); \
+	DATA_DIR_FROM_DEFAULTS=$$(grep "^DATA_DIR=" defaults.env 2>/dev/null | cut -d'=' -f2 || true); \
+	DATA_PATH=$${DATA_DIR_FROM_ENV:-$$DATA_DIR_FROM_DEFAULTS}; \
+	if [ -n "$$DATA_PATH" ]; then \
 		NETWORK_NAME=$$(grep "^NETWORK=" .env | cut -d'=' -f2); \
 		RESOLVED_DATA_PATH=$$(echo "$$DATA_PATH" | sed "s/\$${NETWORK}/$$NETWORK_NAME/g"); \
 		echo "⚠️  Custom data directory detected: $$RESOLVED_DATA_PATH"; \
 		echo "   Data will NOT be automatically removed for safety."; \
-		echo "   To manually remove: sudo rm -rf $$RESOLVED_DATA_PATH"; \
+		echo "   To manually remove: rm -rf $$RESOLVED_DATA_PATH"; \
 	fi
 	@echo "✅ Cleanup complete! (Images and build cache preserved for faster rebuilds)"
 	@echo "💡 Use 'make clean-all' to remove everything including images and builds"
@@ -341,13 +349,15 @@ clean-all: ## Remove everything including images
 	fi
 	@echo "🖼️  Removing all images, volumes, and cache..."
 	docker system prune -af --volumes
-	@if [ -f .env ] && grep -q "^DATA_DIR=" .env; then \
-		DATA_PATH=$$(grep "^DATA_DIR=" .env | cut -d'=' -f2); \
+	@DATA_DIR_FROM_ENV=$$(grep "^DATA_DIR=" .env 2>/dev/null | cut -d'=' -f2 || true); \
+	DATA_DIR_FROM_DEFAULTS=$$(grep "^DATA_DIR=" defaults.env 2>/dev/null | cut -d'=' -f2 || true); \
+	DATA_PATH=$${DATA_DIR_FROM_ENV:-$$DATA_DIR_FROM_DEFAULTS}; \
+	if [ -n "$$DATA_PATH" ]; then \
 		NETWORK_NAME=$$(grep "^NETWORK=" .env | cut -d'=' -f2); \
 		RESOLVED_DATA_PATH=$$(echo "$$DATA_PATH" | sed "s/\$${NETWORK}/$$NETWORK_NAME/g"); \
 		echo "⚠️  Custom data directory detected: $$RESOLVED_DATA_PATH"; \
 		echo "   Data will NOT be automatically removed for safety."; \
-		echo "   To manually remove: sudo rm -rf $$RESOLVED_DATA_PATH"; \
+		echo "   To manually remove: rm -rf $$RESOLVED_DATA_PATH"; \
 	fi
 	@echo "✅ Complete cleanup finished!"
 
@@ -383,16 +393,23 @@ update: ## Update to latest version (set NODE_VERSION in .env first)
 	HOST_UID=$$(id -u) HOST_GID=$$(id -g) docker compose build --no-cache
 	HOST_UID=$$(id -u) HOST_GID=$$(id -g) docker compose up -d
 
-setup-data-dir: ## Setup custom data directory (requires DATA_DIR in .env)
+setup-data-dir: ## Setup custom data directory (requires DATA_DIR in .env or defaults.env)
 	@if [ ! -f .env ]; then echo "❌ .env file not found. Copy a chain-specific .env file first (e.g., cp cosmoshub-4.env .env)"; exit 1; fi
-	@if ! grep -q "^DATA_DIR=" .env; then echo "❌ DATA_DIR not set in .env file. Please configure DATA_DIR=/your/path"; exit 1; fi
-	@DATA_PATH=$$(grep "^DATA_DIR=" .env | cut -d'=' -f2); \
+	@DATA_DIR_FROM_ENV=$$(grep "^DATA_DIR=" .env 2>/dev/null | cut -d'=' -f2 || true); \
+	DATA_DIR_FROM_DEFAULTS=$$(grep "^DATA_DIR=" defaults.env 2>/dev/null | cut -d'=' -f2 || true); \
+	DATA_PATH=$${DATA_DIR_FROM_ENV:-$$DATA_DIR_FROM_DEFAULTS}; \
+	if [ -z "$$DATA_PATH" ]; then echo "❌ DATA_DIR not set in .env or defaults.env file. Please configure DATA_DIR=/your/path"; exit 1; fi; \
 	NETWORK_NAME=$$(grep "^NETWORK=" .env | cut -d'=' -f2 | head -1); \
 	RESOLVED_DATA_PATH=$$(echo "$$DATA_PATH" | sed "s/\$${NETWORK}/$$NETWORK_NAME/g"); \
 	echo "🗂️  Setting up data directory: $$RESOLVED_DATA_PATH"; \
-	mkdir -p "$$RESOLVED_DATA_PATH" && \
-	chown $$(id -u):$$(id -g) "$$RESOLVED_DATA_PATH" && \
-	echo "✅ Data directory $$RESOLVED_DATA_PATH is ready!" || \
+	if [ ! -d "$$RESOLVED_DATA_PATH" ]; then \
+		mkdir -p "$$RESOLVED_DATA_PATH" && \
+		chown $$(id -u):$$(id -g) "$$RESOLVED_DATA_PATH" && \
+		echo "✅ Data directory $$RESOLVED_DATA_PATH created with correct ownership!"; \
+	else \
+		chown -R $$(id -u):$$(id -g) "$$RESOLVED_DATA_PATH" && \
+		echo "✅ Data directory $$RESOLVED_DATA_PATH ownership corrected!"; \
+	fi || \
 	echo "❌ Failed to setup data directory. Check permissions and path."
 
 ## Development targets
