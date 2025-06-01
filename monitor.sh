@@ -4,8 +4,14 @@
 
 set -e
 
+# Read RPC port from .env file or use default
+if [ -f .env ]; then
+    RPC_PORT=$(grep "^RPC_PORT=" .env | cut -d'=' -f2 | head -1)
+fi
+RPC_PORT=${RPC_PORT:-26657}  # Default to 26657 if not found
+
 # Configuration
-RPC_URL="http://localhost:27147"
+RPC_URL="http://localhost:${RPC_PORT}"
 TIMEOUT=10
 
 echo "=== Cosmos Node Status ==="
