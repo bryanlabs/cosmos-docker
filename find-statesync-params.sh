@@ -19,13 +19,11 @@ TIMEOUT=10
 MIN_BLOCKS_BEHIND=1000
 MAX_BLOCKS_BEHIND=5000
 PREFERRED_BLOCKS_BEHIND=3000
+BLOCK_SAFETY_MARGIN=3000
+MIN_SAFETY_MARGIN=100
 
-# Chain configurations
-declare -A CHAIN_CONFIGS=(
-    ["osmosis"]="osmosis-1.env osmosis-rpc.polkachu.com:443,osmosis-rpc.bryanlabs.net:443"
-    ["cosmos"]="cosmoshub-4.env cosmos-rpc.polkachu.com:443,cosmos-rpc.bryanlabs.net:443"
-    ["noble"]="noble-1.env noble-rpc.polkachu.com:443,noble-rpc.bryanlabs.net:443"
-)
+# Default env file to read RPC servers from
+DEFAULT_ENV_FILE=".env"
 
 log() {
     echo -e "${CYAN}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1"
@@ -56,6 +54,26 @@ query_rpc() {
     curl -s --max-time "$timeout" --fail "$url/$endpoint" 2>/dev/null
 }
 
+# Function to read RPC servers from env file
+get_rpc_servers_from_env() {
+    local env_file="$1"
+    
+    if [ ! -f "$env_file" ]; then
+        error "Environment file not found: $env_file"
+        return 1
+    fi
+    
+    # Extract STATESYNC_RPC_SERVERS from the env file
+    local rpc_servers=$(grep "^STATESYNC_RPC_SERVERS=" "$env_file" | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+    
+    if [ -z "$rpc_servers" ]; then
+        error "STATESYNC_RPC_SERVERS not found or empty in $env_file"
+        return 1
+    fi
+    
+    echo "$rpc_servers"
+}
+
 # Function to get current block height from RPC
 get_current_height() {
     local rpc_url="$1"
@@ -77,6 +95,11 @@ get_app_hash() {
     if [[ $? -eq 0 && -n "$response" ]]; then
         echo "$response" | jq -r '.result.block.header.app_hash // empty' 2>/dev/null
     fi
+}
+
+# Function to get block hash for a specific height (alias for get_app_hash)
+get_block_hash() {
+    get_app_hash "$@"
 }
 
 # Function to find the best available height for an RPC server
@@ -135,7 +158,7 @@ find_earliest_block() {
     local current_height="$2"
     local target_height="$3"
     
-    log_info "Checking block availability on $rpc_url (target: $target_height)"
+    info "Checking block availability on $rpc_url (target: $target_height)"
     
     # Binary search to find earliest available block
     local low=$((current_height - 50000))  # Start checking from 50k blocks back
@@ -174,13 +197,30 @@ find_earliest_block() {
     echo "$safe_height"
 }
 
-# Function to process a single chain
-process_chain() {
-    local chain_name="$1"
-    local rpc_servers="$2"
+# Function to process the current chain from .env file
+process_current_chain() {
+    local env_file="${1:-$DEFAULT_ENV_FILE}"
+    
+    if [ ! -f "$env_file" ]; then
+        error "Environment file not found: $env_file"
+        return 1
+    fi
+    
+    # Read RPC servers from the env file
+    local rpc_servers
+    if ! rpc_servers=$(get_rpc_servers_from_env "$env_file"); then
+        return 1
+    fi
+    
+    # Get chain name from NETWORK variable in env file
+    local chain_name=$(grep "^NETWORK=" "$env_file" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+    if [ -z "$chain_name" ]; then
+        chain_name="unknown-chain"
+    fi
     
     echo
-    log_info "=== Processing $chain_name chain ==="
+    info "=== Processing $chain_name chain ==="
+    info "Using RPC servers from $env_file: $rpc_servers"
     
     # Convert comma-separated RPC servers to array
     IFS=',' read -ra rpc_array <<< "$rpc_servers"
@@ -198,20 +238,25 @@ process_chain() {
         rpc_url=$(echo "$rpc_url" | tr -d ' ')
         
         if current_height=$(get_current_height "$rpc_url"); then
-            server_heights["$rpc_url"]="$current_height"
-            log_success "Current height from $rpc_url: $current_height"
-            
-            if [ "$current_height" -gt "$max_height" ]; then
-                max_height="$current_height"
+            if [ -n "$current_height" ] && [ "$current_height" -gt 0 ]; then
+                server_heights["$rpc_url"]="$current_height"
+                success "Current height from $rpc_url: $current_height"
+                
+                if [ "$current_height" -gt "$max_height" ]; then
+                    max_height="$current_height"
+                fi
+            else
+                error "Invalid or empty height from $rpc_url"
+                server_heights["$rpc_url"]="0"
             fi
         else
-            log_error "Cannot reach $rpc_url"
+            error "Cannot reach $rpc_url"
             server_heights["$rpc_url"]="0"
         fi
     done
     
     if [ "$max_height" -eq 0 ]; then
-        log_error "No servers responded for $chain_name"
+        error "No servers responded for $chain_name"
         return 1
     fi
     
@@ -221,7 +266,7 @@ process_chain() {
         target_height=1
     fi
     
-    log_info "Target height for $chain_name: $target_height (max: $max_height, safety margin: $BLOCK_SAFETY_MARGIN)"
+    info "Target height for $chain_name: $target_height (max: $max_height, safety margin: $BLOCK_SAFETY_MARGIN)"
     
     # Try to get block hash from each server
     for rpc_url in "${rpc_array[@]}"; do
@@ -235,13 +280,13 @@ process_chain() {
         
         # If target height is not available, find the best available height
         if ! get_block_hash "$rpc_url" "$target_height" >/dev/null 2>&1; then
-            log_warning "$rpc_url doesn't have block $target_height, finding earliest available..."
+            warn "$rpc_url doesn't have block $target_height, finding earliest available..."
             actual_height=$(find_earliest_block "$rpc_url" "${server_heights[$rpc_url]}" "$target_height")
         fi
         
         # Get the hash for the actual height
         if hash=$(get_block_hash "$rpc_url" "$actual_height"); then
-            log_success "Got hash from $rpc_url at height $actual_height: $hash"
+            success "Got hash from $rpc_url at height $actual_height: $hash"
             
             # Prefer the highest height that's still safe
             if [ "$actual_height" -gt "$best_height" ]; then
@@ -250,14 +295,14 @@ process_chain() {
                 best_server="$rpc_url"
             fi
         else
-            log_warning "Failed to get hash from $rpc_url at height $actual_height"
+            warn "Failed to get hash from $rpc_url at height $actual_height"
         fi
     done
     
     # Output results
     if [ "$best_height" -gt 0 ] && [ -n "$best_hash" ]; then
         echo
-        log_success "=== Best parameters for $chain_name ==="
+        success "=== Best parameters for $chain_name ==="
         echo "STATESYNC_TRUST_HEIGHT=$best_height"
         echo "STATESYNC_TRUST_HASH=$best_hash"
         echo "# Source: $best_server"
@@ -266,25 +311,25 @@ process_chain() {
         
         # Verify hash with other servers
         echo
-        log_info "Verifying hash with other servers..."
+        info "Verifying hash with other servers..."
         for rpc_url in "${rpc_array[@]}"; do
             rpc_url=$(echo "$rpc_url" | tr -d ' ')
             if [ "$rpc_url" != "$best_server" ] && [ "${server_heights[$rpc_url]}" -gt 0 ]; then
                 if verify_hash=$(get_block_hash "$rpc_url" "$best_height" 2>/dev/null); then
                     if [ "$verify_hash" = "$best_hash" ]; then
-                        log_success "✓ Hash verified on $rpc_url"
+                        success "✓ Hash verified on $rpc_url"
                     else
-                        log_warning "✗ Hash mismatch on $rpc_url: $verify_hash"
+                        warn "✗ Hash mismatch on $rpc_url: $verify_hash"
                     fi
                 else
-                    log_warning "✗ Cannot verify on $rpc_url (block not available)"
+                    warn "✗ Cannot verify on $rpc_url (block not available)"
                 fi
             fi
         done
         
         return 0
     else
-        log_error "Could not find suitable state sync parameters for $chain_name"
+        error "Could not find suitable state sync parameters for $chain_name"
         return 1
     fi
 }
@@ -296,23 +341,23 @@ main() {
     
     # Check required tools
     if ! command -v curl &> /dev/null; then
-        log_error "curl is required but not installed"
+        error "curl is required but not installed"
         exit 1
     fi
     
     if ! command -v jq &> /dev/null; then
-        log_error "jq is required but not installed"
+        error "jq is required but not installed"
         exit 1
     fi
     
     # Process command line arguments
-    local specific_chain=""
+    local env_file="$DEFAULT_ENV_FILE"
     local update_configs=false
     
     while [[ $# -gt 0 ]]; do
         case $1 in
-            --chain)
-                specific_chain="$2"
+            --env)
+                env_file="$2"
                 shift 2
                 ;;
             --update)
@@ -326,50 +371,36 @@ main() {
             --help)
                 echo "Usage: $0 [OPTIONS]"
                 echo "Options:"
-                echo "  --chain CHAIN        Process only specific chain (osmosis, noble, cosmos)"
-                echo "  --update            Update .env files with discovered parameters"
+                echo "  --env FILE          Use specific env file (default: .env)"
+                echo "  --update            Update env file with discovered parameters"
                 echo "  --safety-margin N   Set safety margin in blocks (default: $BLOCK_SAFETY_MARGIN)"
                 echo "  --help              Show this help message"
                 exit 0
                 ;;
             *)
-                log_error "Unknown option: $1"
+                error "Unknown option: $1"
                 exit 1
                 ;;
         esac
     done
     
-    # Process chains
+    # Process the env file
     local exit_code=0
     
-    if [ -n "$specific_chain" ]; then
-        if [ -n "${CHAINS[$specific_chain]:-}" ]; then
-            if ! process_chain "$specific_chain" "${CHAINS[$specific_chain]}"; then
-                exit_code=1
-            fi
-        else
-            log_error "Unknown chain: $specific_chain"
-            log_info "Available chains: ${!CHAINS[*]}"
-            exit 1
-        fi
-    else
-        for chain in "${!CHAINS[@]}"; do
-            if ! process_chain "$chain" "${CHAINS[$chain]}"; then
-                exit_code=1
-            fi
-        done
+    if ! process_current_chain "$env_file"; then
+        exit_code=1
     fi
     
     echo
     if [ $exit_code -eq 0 ]; then
-        log_success "All chains processed successfully!"
+        success "All chains processed successfully!"
         
         if [ "$update_configs" = true ]; then
-            log_info "Note: --update flag specified but auto-update not implemented yet"
-            log_info "Please manually update the .env files with the parameters above"
+            info "Note: --update flag specified but auto-update not implemented yet"
+            info "Please manually update the .env files with the parameters above"
         fi
     else
-        log_warning "Some chains failed to process. Check logs above."
+        warn "Some chains failed to process. Check logs above."
     fi
     
     exit $exit_code

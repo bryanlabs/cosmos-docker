@@ -46,6 +46,7 @@ services:
     image: ${DAEMON_NAME:-cosmos}:local
     pull_policy: never
     user: ${DAEMON_NAME:-cosmos}
+    container_name: ${NETWORK}
     <<: *cosmos-defaults
     stop_grace_period: 5m
     environment:
