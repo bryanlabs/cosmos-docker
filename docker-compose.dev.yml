@@ -1,0 +1,150 @@
+# Development override for docker-compose
+# To use: docker compose -f cosmos.yml -f docker-compose.dev.yml up
+# 
+# This file provides development-specific overrides including:
+# - Enhanced logging and debugging
+# - Local file mounts for easier development
+# - Development tools and utilities
+# - Faster health checks and restarts
+# - Optional monitoring and debugging containers
+
+services:
+  cosmos:
+    # Enable more verbose logging for development
+    environment:
+      - LOG_LEVEL=debug
+      - NODE_LOG_FORMAT=json
+      - CONSENSUS_TIMEOUT_COMMIT=1s  # Faster block times for testing
+      - MEMPOOL_RECHECK=false        # Reduce CPU usage in dev
+      - P2P_ADDR_BOOK_STRICT=false   # More lenient networking
+    
+    # Mount local directories for easier development/debugging
+    volumes:
+      - ./logs:/var/log/cosmos
+      - ./dev-config:/dev-config:ro  # Mount custom configs
+    
+    # Add labels for development identification
+    labels:
+      - "environment=development"
+      - "project=cosmos-docker"
+      - "cosmos.chain=${NETWORK:-unknown}"
+    
+    # Override healthcheck for faster feedback during development
+    healthcheck:
+      interval: 15s
+      timeout: 5s
+      retries: 2
+      start_period: 30s
+    
+    # More permissive restart policy for development
+    restart: on-failure
+
+  # Development tools container with useful utilities
+  dev-tools:
+    image: alpine:latest
+    command: |
+      sh -c "
+        apk add --no-cache curl jq bash htop procps &&
+        echo 'Development tools ready. Access with: docker compose exec dev-tools bash' &&
+        tail -f /dev/null
+      "
+    volumes:
+      - node-data:/${DAEMON_NAME:-cosmos}:ro
+      - ./logs:/logs:ro
+    profiles:
+      - dev-tools
+    labels:
+      - "environment=development"
+      - "service=dev-tools"
+
+  # Optional monitoring container for development
+  monitor:
+    image: prom/prometheus:latest
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9092:9090"
+    volumes:
+      - ./dev-config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    profiles:
+      - monitoring
+    labels:
+      - "environment=development"
+      - "service=monitoring"
+
+  # Node exporter for system metrics
+  node-exporter:
+    image: prom/node-exporter:latest
+    command:
+      - '--path.rootfs=/host'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - "9100:9100"
+    restart: unless-stopped
+    volumes:
+      - '/:/host:ro,rslave'
+    profiles:
+      - monitoring
+    labels:
+      - "environment=development"
+      - "service=monitoring"
+
+  # Optional log aggregator for development
+  loki:
+    image: grafana/loki:latest
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki-data:/tmp/loki
+    profiles:
+      - logging
+    labels:
+      - "environment=development"
+      - "service=logging"
+
+  # Optional Grafana for development dashboards
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./dev-config/grafana:/etc/grafana/provisioning:ro
+    profiles:
+      - monitoring
+    labels:
+      - "environment=development"
+      - "service=monitoring"
+
+  # Cosmos Node Exporter for RPC node monitoring
+  cosmos-node-exporter:
+    image: ghcr.io/solarlabsteam/cosmos-exporter:latest
+    command:
+      - --tendermint-rpc=http://cosmos:${RPC_PORT:-26657}
+      - --node=http://cosmos:${REST_PORT:-1317}
+      - --listen-address=0.0.0.0:9300
+      - --log-level=info
+    ports:
+      - "9300:9300"
+    restart: unless-stopped
+    depends_on:
+      - cosmos
+    profiles:
+      - monitoring
+    labels:
+      - "environment=development" 
+      - "service=monitoring"
+      - "component=cosmos-node-exporter"
+
+volumes:
+  prometheus-data:
+  loki-data:
+  grafana-data:

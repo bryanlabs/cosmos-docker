@@ -1,0 +1,85 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run security scans weekly on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+    
+    - name: Check for sensitive files
+      run: |
+        echo "Checking for sensitive files..."
+        
+        # Check for common sensitive file patterns
+        SENSITIVE_FILES=(
+          "*.pem"
+          "*.key"
+          "*.p12"
+          "*.pfx"
+          "id_rsa*"
+          "id_dsa*"
+          "id_ecdsa*"
+          "id_ed25519*"
+          "*.keystore"
+          "*.jks"
+          "*.crt"
+          "*.csr"
+        )
+        
+        for pattern in "${SENSITIVE_FILES[@]}"; do
+          if find . -name "$pattern" -type f | head -1 | grep -q .; then
+            echo "⚠️  Found potentially sensitive files matching: $pattern"
+            find . -name "$pattern" -type f
+          fi
+        done
+        
+        echo "✅ Sensitive file check completed"
+    
+    - name: Validate secrets in environment files
+      run: |
+        echo "Checking for potential secrets in environment files..."
+        
+        # Check for potential secrets (basic patterns)
+        SECRET_PATTERNS=(
+          "password.*="
+          "secret.*="
+          "key.*="
+          "token.*="
+        )
+        
+        for env_file in *.env .env.example; do
+          if [ -f "$env_file" ]; then
+            echo "Checking $env_file for potential secrets..."
+            for pattern in "${SECRET_PATTERNS[@]}"; do
+              if grep -i "$pattern" "$env_file" | grep -v "CHANGEME\|PLACEHOLDER\|EXAMPLE"; then
+                echo "⚠️  Potential secret found in $env_file"
+              fi
+            done
+          fi
+        done
+        
+        echo "✅ Secret validation completed"

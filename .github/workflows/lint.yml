@@ -1,0 +1,44 @@
+name: YAML Lint
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  yamllint:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+    
+    - name: Install yamllint
+      run: pip install yamllint
+    
+    - name: Create yamllint config
+      run: |
+        cat > .yamllint.yml << EOF
+        extends: default
+        rules:
+          line-length:
+            max: 120
+          comments:
+            min-spaces-from-content: 1
+          truthy:
+            allowed-values: ['true', 'false']
+          indentation:
+            spaces: 2
+        EOF
+    
+    - name: Lint YAML files
+      run: |
+        yamllint -c .yamllint.yml *.yml
+        if [ -f docker-compose.dev.yml ]; then
+          yamllint -c .yamllint.yml docker-compose.dev.yml
+        fi

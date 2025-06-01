@@ -4,32 +4,35 @@ FROM ghcr.io/tomwright/dasel:2-alpine AS dasel
 # Base image for the final stage
 FROM alpine:3.18
 
-ARG USER=thornode
-ARG UID=10001
-ARG THORNODE_VERSION
+ARG USER=cosmos
+ARG UID=1000
+ARG GID=1000
+ARG NODE_VERSION
 
-ENV VERSION_NUMBER=${THORNODE_VERSION#v}
+ENV VERSION_NUMBER=${NODE_VERSION#v}
 
-RUN apk update && apk add --no-cache ca-certificates tzdata bash curl wget jq tar pv aria2
+RUN apk update && apk add --no-cache ca-certificates tzdata bash curl wget jq tar pv aria2 lz4 zstd
 
 # See https://stackoverflow.com/a/55757473/12429735RUN
-RUN adduser \
+RUN addgroup -g "${GID}" "${USER}" && \
+    adduser \
     --disabled-password \
     --gecos "" \
     --shell "/sbin/nologin" \
     --uid "${UID}" \
+    --ingroup "${USER}" \
     "${USER}"
 
-VOLUME /thornode
+VOLUME /${USER}
 
-RUN mkdir -p /thornode/config
-RUN mkdir -p /thornode/data
+RUN mkdir -p /${USER}/config
+RUN mkdir -p /${USER}/data
 
 # Copy dasel for config management
 COPY --from=dasel --chown=${USER}:${USER} /usr/local/bin/dasel /usr/local/bin/
 
 # Set correct permissions
-RUN chown -R ${USER}:${USER} /thornode && chmod -R 700 /thornode
+RUN chown -R ${USER}:${USER} /${USER} && chmod -R 700 /${USER}
 
 # Cannot assume buildkit, hence no chmod
 COPY ./docker-entrypoint.sh /usr/local/bin/

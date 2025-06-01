@@ -1,0 +1,46 @@
+name: Question
+description: Ask a question about THORChain Docker
+title: "[QUESTION] "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have a question about THORChain Docker? We're here to help!
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What would you like to know?
+      placeholder: How do I...?
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Provide any relevant context about your setup or what you're trying to achieve.
+      placeholder: |
+        I'm trying to...
+        My setup is...
+        I've already tried...
+
+  - type: checkboxes
+    id: checked
+    attributes:
+      label: Documentation Checked
+      description: Have you checked the existing documentation?
+      options:
+        - label: I've read the README.md
+        - label: I've checked DEVELOPMENT.md
+        - label: I've looked at the configuration files
+        - label: I've run `./validate.sh`
+        - label: I've searched existing issues
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Information
+      description: Any other information that might help us answer your question.
