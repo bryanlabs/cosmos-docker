@@ -8,19 +8,99 @@
 
 Run any Cosmos chain fullnode in Docker Compose.
 
-This Docker Compose setup provides a generic environment for running any Cosmos-based blockchain fullnode. Simply copy a chain-specific environment file and start your node!
+This Docker Compose setup provides a generic environment for running any Cosmos-based blockchain fullnode with integrated chain management tools and support for 200+ chains from the cosmos/chain-registry.
+
+## 🚀 Quick Start
+
+### Option 1: Use Existing Chain
+```bash
+# List available chains
+make chains
+
+# Set active chain (copies config to .env)
+make use CHAIN=kaiyo-1
+
+# Start the node
+make start
+```
+
+### Option 2: Pull New Chain from Registry
+```bash
+# Pull chain config from cosmos/chain-registry
+make pull CHAIN=osmosis
+
+# Use the new chain
+make use CHAIN=osmosis-1
+
+# Start the node
+make start
+```
+
+### Option 3: Create Custom Chain
+```bash
+# Create custom chain template
+make create CHAIN=my-devnet
+
+# Edit the configuration
+nano chains/mainnet/my-devnet.env
+
+# Use the custom chain
+make use CHAIN=my-devnet
+```
+
+## 📁 Project Structure
+
+```
+cosmos-docker/
+├── chains/
+│   ├── mainnet/          # Production chain configurations
+│   │   ├── kaiyo-1.env   # Kujira mainnet
+│   │   ├── osmosis-1.env # Osmosis mainnet
+│   │   └── ...
+│   └── testnet/          # Testnet configurations
+├── scripts/
+│   ├── chain-manager.sh  # Chain management tool
+│   ├── cr-env           # Chain registry integration
+│   └── ...
+├── docs/
+│   └── archive/         # Historical documentation
+├── cosmos.yml           # Main docker-compose file
+├── Makefile            # Build and management commands
+└── README.md
+```
+
+## 🔧 Chain Management
+
+The integrated chain manager supports 200+ chains from the cosmos/chain-registry:
+
+```bash
+# Chain Management Commands
+make chains              # List all available chains
+make use CHAIN=<id>      # Set active chain
+make pull CHAIN=<name>   # Pull from chain registry
+make create CHAIN=<id>   # Create custom chain
+make validate CHAIN=<id> # Validate configuration
+
+# Or use the script directly
+./scripts/chain-manager.sh help
+```
 
 ## Supported Chains
 
-This setup works with any Cosmos-based blockchain. Included example configurations:
+This setup works with any Cosmos-based blockchain. Pre-configured chains include:
 
-- **thorchain-1** - THORChain mainnet
+**Mainnet:**
+- **kaiyo-1** - Kujira mainnet
 - **cosmoshub-4** - Cosmos Hub mainnet  
 - **osmosis-1** - Osmosis mainnet
+- **phoenix-1** - Terra mainnet
 - **noble-1** - Noble mainnet
-- **theta-testnet-001** - Cosmos Hub testnet
+- **thorchain-1** - THORChain mainnet
 
-You can easily create configuration files for other chains by copying and modifying the provided examples.
+**Registry Integration:**
+- 200+ chains available via `make pull CHAIN=<name>`
+- Automatic configuration from cosmos/chain-registry
+- Snapshot auto-detection from Polkachu API
 
 ## System Requirements
 
@@ -65,60 +145,6 @@ This script will:
 - ✅ Check file structure and permissions
 - ✅ Test Docker image availability
 - ✅ Run basic security checks
-
-## Quick Start
-
-### 1. Clone and Setup
-```bash
-# Clone the repository
-git clone https://github.com/your-org/cosmos-docker.git
-cd cosmos-docker
-```
-
-### 2. Choose Your Chain
-Pick one of the pre-configured chains or create your own:
-
-```bash
-# For THORChain mainnet
-cp thorchain-1.env .env
-
-# For Cosmos Hub mainnet  
-cp cosmoshub-4.env .env
-
-# For Osmosis mainnet
-cp osmosis-1.env .env
-
-# For Noble mainnet
-cp noble-1.env .env
-
-# For Cosmos Hub testnet
-cp theta-testnet-001.env .env
-```
-
-### 3. Start Your Node
-```bash
-make start
-```
-
-That's it! Your node will start syncing automatically.
-
-### Manual Configuration
-
-If you prefer to configure manually:
-
-```bash
-# Copy an example configuration
-cp thorchain-1.env .env
-
-# Edit configuration as needed
-nano .env
-
-# Start the node
-docker compose up -d
-
-# Monitor logs
-docker compose logs -f cosmos
-```
 
 ## Development Mode
 

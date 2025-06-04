@@ -382,27 +382,34 @@ download_and_extract_snapshot() {
   local SNAP_URL="$1"
   local FILENAME FILEPATH
   FILENAME=$(basename "$SNAP_URL")
-  log "Downloading snapshot: $SNAP_URL"
-  aria2c --split=16 --max-concurrent-downloads=16 --max-connection-per-server=16 --continue --min-split-size=100M -d ${BLOCKCHAIN_HOME} -o "$FILENAME" "$SNAP_URL"
-  FILEPATH="${BLOCKCHAIN_HOME}/$FILENAME"
+  
+  # Use the mounted data directory for all snapshot operations to avoid space issues
+  local SNAPSHOT_DIR="${DATA_DIR}/data"
+  mkdir -p "$SNAPSHOT_DIR"
+  
+  log "Downloading snapshot to data directory: $SNAP_URL"
+  aria2c --split=16 --max-concurrent-downloads=16 --max-connection-per-server=16 --continue --min-split-size=100M -d "$SNAPSHOT_DIR" -o "$FILENAME" "$SNAP_URL"
+  FILEPATH="$SNAPSHOT_DIR/$FILENAME"
+  
   if [[ "$FILENAME" == *.tar.lz4 ]]; then
     log "Decompressing LZ4 archive..."
-    lz4 -c -d "$FILEPATH" > "${BLOCKCHAIN_HOME}/snapshot.tar"
+    lz4 -c -d "$FILEPATH" > "$SNAPSHOT_DIR/snapshot.tar"
     rm "$FILEPATH"
   elif [[ "$FILENAME" == *.tar.gz ]]; then
     log "Decompressing GZ archive..."
-    gzip -d -c "$FILEPATH" > "${BLOCKCHAIN_HOME}/snapshot.tar"
+    gzip -d -c "$FILEPATH" > "$SNAPSHOT_DIR/snapshot.tar"
     rm "$FILEPATH"
   elif [[ "$FILENAME" == *.tar.zst ]]; then
     log "Decompressing ZST archive..."
-    zstd -d -c "$FILEPATH" > "${BLOCKCHAIN_HOME}/snapshot.tar"
+    zstd -d -c "$FILEPATH" > "$SNAPSHOT_DIR/snapshot.tar"
     rm "$FILEPATH"
   else
     log "Unsupported snapshot format: $FILENAME"; rm -f "$FILEPATH"; return 1
   fi
+  
   log "Extracting tarball..."
-  tar --exclude='data/priv_validator_state.json' -xvf "${BLOCKCHAIN_HOME}/snapshot.tar" -C ${BLOCKCHAIN_HOME}
-  rm "${BLOCKCHAIN_HOME}/snapshot.tar"
+  tar --exclude='data/priv_validator_state.json' -xvf "$SNAPSHOT_DIR/snapshot.tar" -C ${BLOCKCHAIN_HOME}
+  rm "$SNAPSHOT_DIR/snapshot.tar"
   log "✅ Snapshot extraction completed successfully!"
 }
 

@@ -6,6 +6,43 @@ help: ## Show this help message
 	@echo 'Targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-15s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
+# === CHAIN MANAGEMENT ===
+
+chains: ## List all available chains
+	@./scripts/chain-manager.sh list
+
+use: ## Set active chain (Usage: make use CHAIN=kaiyo-1)
+	@if [ -z "$(CHAIN)" ]; then \
+		echo "❌ Please specify a chain: make use CHAIN=<chain-id>"; \
+		echo "Available chains:"; \
+		./scripts/chain-manager.sh list; \
+		exit 1; \
+	fi
+	@./scripts/chain-manager.sh use $(CHAIN)
+
+pull: ## Pull chain config from registry (Usage: make pull CHAIN=osmosis)
+	@if [ -z "$(CHAIN)" ]; then \
+		echo "❌ Please specify a chain: make pull CHAIN=<chain-name>"; \
+		exit 1; \
+	fi
+	@./scripts/chain-manager.sh pull $(CHAIN)
+
+create: ## Create custom chain config (Usage: make create CHAIN=my-devnet)
+	@if [ -z "$(CHAIN)" ]; then \
+		echo "❌ Please specify a chain: make create CHAIN=<chain-id>"; \
+		exit 1; \
+	fi
+	@./scripts/chain-manager.sh create $(CHAIN)
+
+validate: ## Validate chain config (Usage: make validate CHAIN=kaiyo-1)
+	@if [ -z "$(CHAIN)" ]; then \
+		echo "❌ Please specify a chain: make validate CHAIN=<chain-id>"; \
+		exit 1; \
+	fi
+	@./scripts/chain-manager.sh validate $(CHAIN)
+
+# === NODE OPERATIONS ===
+
 start: ## Start Cosmos node with complete monitoring
 	@if [ ! -f .env ]; then \
 		echo "❌ .env file not found!"; \
