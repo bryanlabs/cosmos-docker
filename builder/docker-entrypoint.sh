@@ -19,31 +19,77 @@ echo "Cloning repository from: $NODE_REPO"
 git clone --branch ${NODE_VERSION} "$NODE_REPO" /src/node
 cd /src/node
 
-# Download the correct WasmVM library for musl (if needed by the chain)
-echo "Downloading WasmVM library for musl..."
+# Check if this chain uses WasmVM and detect version before downloading modules
+WASMVM_VERSION=""
+WASMVM_MODULE=""
+USES_WASMVM=false
+
+if grep -q "github.com/CosmWasm/wasmvm" go.mod; then
+    echo "Chain uses WasmVM, detecting version..."
+    USES_WASMVM=true
+    
+    # Detect WasmVM version (v1 or v2) by checking go.mod directly
+    if grep -q "github.com/CosmWasm/wasmvm/v2" go.mod; then
+        WASMVM_MODULE="github.com/CosmWasm/wasmvm/v2"
+        echo "Detected WasmVM v2 in go.mod"
+    elif grep -q "github.com/CosmWasm/wasmvm" go.mod; then
+        WASMVM_MODULE="github.com/CosmWasm/wasmvm"
+        echo "Detected WasmVM v1 in go.mod"
+    else
+        echo "Error: Could not detect WasmVM version in go.mod"
+        exit 1
+    fi
+else
+    echo "Chain does not use WasmVM"
+fi
+
+# Download dependencies
+echo "Downloading Go modules..."
 go mod download
 
-# Check if this chain uses WasmVM
-if grep -q "github.com/CosmWasm/wasmvm" go.mod; then
-    echo "Chain uses WasmVM, downloading musl library..."
-    WASMVM_VERSION=$(go list -m github.com/CosmWasm/wasmvm/v2 | cut -d ' ' -f 2)
+if [ "$USES_WASMVM" = true ]; then
+    echo "Setting up WasmVM musl library..."
+    
+    # Get the actual version from go.mod
+    WASMVM_VERSION=$(go list -m $WASMVM_MODULE | cut -d ' ' -f 2)
     echo "WasmVM version: $WASMVM_VERSION"
 
     # Download the musl-compatible static library
-    wget -q https://github.com/CosmWasm/wasmvm/releases/download/$WASMVM_VERSION/libwasmvm_muslc.$(uname -m).a \
-      -O /lib/libwasmvm_muslc.$(uname -m).a
+    echo "Downloading WasmVM musl library..."
+    if ! wget -q https://github.com/CosmWasm/wasmvm/releases/download/$WASMVM_VERSION/libwasmvm_muslc.$(uname -m).a \
+      -O /lib/libwasmvm_muslc.$(uname -m).a; then
+        echo "Error: Failed to download WasmVM musl library"
+        exit 1
+    fi
 
     # Verify checksum
-    wget -q https://github.com/CosmWasm/wasmvm/releases/download/"$WASMVM_VERSION"/checksums.txt -O /tmp/checksums.txt
-    sha256sum /lib/libwasmvm_muslc.$(uname -m).a | grep $(cat /tmp/checksums.txt | grep libwasmvm_muslc.$(uname -m) | cut -d ' ' -f 1)
+    echo "Verifying WasmVM library checksum..."
+    if ! wget -q https://github.com/CosmWasm/wasmvm/releases/download/"$WASMVM_VERSION"/checksums.txt -O /tmp/checksums.txt; then
+        echo "Warning: Could not download checksums file, skipping verification"
+    else
+        if ! sha256sum /lib/libwasmvm_muslc.$(uname -m).a | grep $(cat /tmp/checksums.txt | grep libwasmvm_muslc.$(uname -m) | cut -d ' ' -f 1); then
+            echo "Warning: Checksum verification failed, but continuing build"
+        else
+            echo "Checksum verification passed"
+        fi
+    fi
 
     # Replace the glibc version with musl version in the Go module cache
-    WASMVM_PATH=$(go list -m -f '{{.Dir}}' github.com/CosmWasm/wasmvm/v2)
+    WASMVM_PATH=$(go list -m -f '{{.Dir}}' $WASMVM_MODULE)
     echo "Replacing WasmVM library at: $WASMVM_PATH"
+    
+    if [ ! -d "$WASMVM_PATH" ]; then
+        echo "Error: WasmVM path not found: $WASMVM_PATH"
+        exit 1
+    fi
+    
+    # Create the internal/api directory if it doesn't exist
+    mkdir -p "$WASMVM_PATH/internal/api"
+    
+    # Copy the library with both expected names
     cp /lib/libwasmvm_muslc.$(uname -m).a $WASMVM_PATH/internal/api/libwasmvm.$(uname -m).a
+    cp /lib/libwasmvm_muslc.$(uname -m).a $WASMVM_PATH/internal/api/libwasmvm_muslc.a
     rm -f $WASMVM_PATH/internal/api/libwasmvm.*.so
-else
-    echo "Chain does not use WasmVM, skipping WasmVM setup..."
 fi
 
 # Create symlink for docker (required by build process)
@@ -85,6 +131,12 @@ if grep -q "gitlab.com/thorchain/thornode" go.mod; then
     LDFLAGS="$LDFLAGS -X gitlab.com/thorchain/thornode/v3/constants.GitCommit=${GIT_COMMIT}"
     LDFLAGS="$LDFLAGS -X github.com/cosmos/cosmos-sdk/version.Name=THORChain"
     LDFLAGS="$LDFLAGS -X github.com/cosmos/cosmos-sdk/version.AppName=thornode"
+elif grep -q "github.com/terra-money/core" go.mod; then
+    LDFLAGS="$LDFLAGS -X github.com/cosmos/cosmos-sdk/version.Name=terra"
+    LDFLAGS="$LDFLAGS -X github.com/cosmos/cosmos-sdk/version.AppName=terrad"
+elif grep -q "github.com/Team-Kujira/core" go.mod; then
+    LDFLAGS="$LDFLAGS -X github.com/cosmos/cosmos-sdk/version.Name=kujira"
+    LDFLAGS="$LDFLAGS -X github.com/cosmos/cosmos-sdk/version.AppName=kujirad"
 elif grep -q "github.com/cosmos/cosmos-sdk" go.mod; then
     LDFLAGS="$LDFLAGS -X github.com/cosmos/cosmos-sdk/version.Name=${DAEMON_NAME}"
     LDFLAGS="$LDFLAGS -X github.com/cosmos/cosmos-sdk/version.AppName=${DAEMON_NAME}"

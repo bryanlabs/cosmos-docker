@@ -294,25 +294,56 @@ restore_snapshot_if_needed() {
   else
     DATA_FILE_COUNT=0
   fi
-  if [ "$DATA_FILE_COUNT" -eq 0 ] && [ -n "${SNAPSHOT:-}" ]; then
-    log "Data directory is minimal and snapshot is configured"
-    if ! download_and_extract_snapshot "$SNAPSHOT"; then
-      log "❌ Snapshot download/extraction failed. Will continue without snapshot..."
-    fi
-  elif [ "$DATA_FILE_COUNT" -eq 0 ] && [ -n "${SNAPSHOT_API_URL:-}" ] && [ -n "${SNAPSHOT_BASE_URL:-}" ]; then
-    log "Data directory is minimal, fetching latest snapshot automatically..."
-    CHAIN_PREFIX=$(echo "$SNAPSHOT_API_URL" | grep -oE 'prefix=[^&]*' | cut -d'=' -f2 || echo "$DAEMON_NAME")
-    FILENAME=$(curl -s "$SNAPSHOT_API_URL" | grep -Eo "${CHAIN_PREFIX}/[0-9]+.tar.gz" | sort -n | tail -n 1 | cut -d "/" -f 2)
-    if [ -n "$FILENAME" ]; then
-      log "Using latest snapshot: $FILENAME"
-      if ! download_and_extract_snapshot "${SNAPSHOT_BASE_URL}${FILENAME}"; then
+  
+  if [ "$DATA_FILE_COUNT" -eq 0 ]; then
+    log "Data directory is minimal, checking for snapshot configuration..."
+    log "DEBUG: SNAPSHOT='${SNAPSHOT:-}', SNAPSHOT_CHAIN='${SNAPSHOT_CHAIN:-}'"
+    
+    # Priority 1: Direct snapshot URL (manual override)
+    if [ -n "${SNAPSHOT:-}" ] && [ "$SNAPSHOT" != "auto" ]; then
+      log "Using direct snapshot URL: $SNAPSHOT"
+      if ! download_and_extract_snapshot "$SNAPSHOT"; then
         log "❌ Snapshot download/extraction failed. Will continue without snapshot..."
       fi
-    else
-      log "No snapshot found, will start syncing from genesis block 1..."
+      return
     fi
+    
+    # Priority 2: Polkachu API with auto-detection (default method)
+    if [ -n "${SNAPSHOT_CHAIN:-}" ]; then
+      log "Detecting latest snapshot for chain: $SNAPSHOT_CHAIN via Polkachu API"
+      SNAPSHOT_URL=$(curl -H "x-polkachu: danb" -s "https://polkachu.com/api/v2/chain_snapshots/$SNAPSHOT_CHAIN" | jq -r '.snapshot.url // empty')
+      if [ -n "$SNAPSHOT_URL" ] && [ "$SNAPSHOT_URL" != "null" ]; then
+        log "Auto-detected snapshot URL: $SNAPSHOT_URL"
+        if ! download_and_extract_snapshot "$SNAPSHOT_URL"; then
+          log "❌ Auto-detected snapshot download/extraction failed. Will continue without snapshot..."
+        fi
+        return
+      else
+        log "❌ Could not auto-detect snapshot URL for chain: $SNAPSHOT_CHAIN. Will continue without snapshot..."
+        return
+      fi
+    fi
+    
+    # Priority 3: Legacy API (only if explicitly configured with both variables)
+    if [ -n "${SNAPSHOT_API_URL:-}" ] && [ -n "${SNAPSHOT_BASE_URL:-}" ]; then
+      log "Using legacy snapshot API..."
+      CHAIN_PREFIX=$(echo "$SNAPSHOT_API_URL" | grep -oE 'prefix=[^&]*' | cut -d'=' -f2 || echo "$DAEMON_NAME")
+      FILENAME=$(curl -s "$SNAPSHOT_API_URL" | grep -Eo "${CHAIN_PREFIX}/[0-9]+.tar.gz" | sort -n | tail -n 1 | cut -d "/" -f 2)
+      if [ -n "$FILENAME" ]; then
+        log "Using latest snapshot: $FILENAME"
+        if ! download_and_extract_snapshot "${SNAPSHOT_BASE_URL}${FILENAME}"; then
+          log "❌ Snapshot download/extraction failed. Will continue without snapshot..."
+        fi
+      else
+        log "No snapshot found via legacy API, will start syncing from genesis block 1..."
+      fi
+      return
+    fi
+    
+    # No snapshot configuration found
+    log "No snapshot configuration found, will start syncing from genesis block 1..."
   else
-    log "Will start syncing from genesis block 1..."
+    log "Data directory contains files, skipping snapshot restore"
   fi
 }
 
@@ -401,4 +432,3 @@ log "✅ Genesis file validation passed: $GENESIS_FILE"
 CMD=$(build_start_command)
 log "Executing command: $CMD"
 exec $CMD
-
