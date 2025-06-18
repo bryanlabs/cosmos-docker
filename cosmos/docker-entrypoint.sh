@@ -272,6 +272,33 @@ apply_config_overrides() {
     fi
   fi
 
+  # WASM configuration
+  if [ "${WASM_MEMORY_CACHE_SIZE+set}" = "set" ] && [ -n "$WASM_MEMORY_CACHE_SIZE" ]; then
+    log "Setting WASM memory cache size in app.toml: $WASM_MEMORY_CACHE_SIZE"
+    dasel put -f "$APP_CONFIG_FILE" -v "$WASM_MEMORY_CACHE_SIZE" 'wasm.memory_cache_size' || true
+  fi
+
+  if [ "${WASM_QUERY_GAS_LIMIT+set}" = "set" ] && [ -n "$WASM_QUERY_GAS_LIMIT" ]; then
+    log "Setting WASM query gas limit in app.toml: $WASM_QUERY_GAS_LIMIT"
+    dasel put -f "$APP_CONFIG_FILE" -v "$WASM_QUERY_GAS_LIMIT" 'wasm.query_gas_limit' || true
+  fi
+
+  if [ "${WASM_SIMULATION_GAS_LIMIT+set}" = "set" ] && [ -n "$WASM_SIMULATION_GAS_LIMIT" ]; then
+    log "Setting WASM simulation gas limit in app.toml: $WASM_SIMULATION_GAS_LIMIT"
+    dasel put -f "$APP_CONFIG_FILE" -v "$WASM_SIMULATION_GAS_LIMIT" 'wasm.simulation_gas_limit' || true
+  fi
+
+  if [ "${WASM_CONTRACT_DEBUG_MODE+set}" = "set" ] && [ -n "$WASM_CONTRACT_DEBUG_MODE" ]; then
+    log "Setting WASM contract debug mode in app.toml: $WASM_CONTRACT_DEBUG_MODE"
+    dasel put -f "$APP_CONFIG_FILE" -v "$WASM_CONTRACT_DEBUG_MODE" 'wasm.contract_debug_mode' || true
+  fi
+
+  # Halt height configuration
+  if [ "${HALT_HEIGHT+set}" = "set" ] && [ -n "$HALT_HEIGHT" ]; then
+    log "Setting halt height in app.toml: $HALT_HEIGHT"
+    dasel put -f "$APP_CONFIG_FILE" -v "$HALT_HEIGHT" 'halt-height' || true
+  fi
+
   log "✅ Node configuration applied"
 }
 
